@@ -46,6 +46,31 @@
     padding:.6em 1.1em; border-radius:100px;
   }
   .demo-btn:active{ background:#2a2a2a; }
+  .dev-panel{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+  .dev-fab{ display:none; }
+
+  /* 実機(狭い画面)では、検証用パネルは邪魔にならない小さな歯車ボタンの裏に隠し、
+     本体は画面いっぱいに使う「本物のアプリ」に近い見た目にする */
+  @media (max-width:480px){
+    body{ padding:0; gap:0; }
+    .dev-fab{
+      display:flex; align-items:center; justify-content:center;
+      position:fixed; top:14px; right:14px; z-index:200;
+      width:34px; height:34px; border-radius:50%; background:#1c1c1cdd; border:1px solid #444;
+      color:#ccc; font-size:1rem;
+    }
+    .dev-panel{
+      display:none; position:fixed; top:56px; right:14px; z-index:200; width:min(240px,calc(100vw - 28px));
+      background:#1c1c1cf5; border:1px solid #333; border-radius:16px; padding:14px; gap:10px;
+      box-shadow:0 20px 40px -12px #000a; align-items:stretch;
+    }
+    .dev-panel.open{ display:flex; }
+    .demo-btn-row{ flex-direction:column; }
+    .device{
+      aspect-ratio:auto; width:100vw; height:100dvh; max-width:none;
+      border-radius:0; border:none; box-shadow:none;
+    }
+  }
 
   /* ---- device ----
      .device は縦横比だけを決める外枠(パネルに合わせて縮む)。
@@ -99,6 +124,7 @@
     padding:6px; display:flex; flex-direction:column;
     box-shadow:0 18px 40px -14px #00000080;
     transition:transform .35s ease, opacity .35s ease;
+    touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
   }
   .postcard .photo{
     position:relative; flex:1; border-radius:20px; overflow:hidden; background:#111820;
@@ -341,10 +367,14 @@
   .shutter span{ width:58px; height:58px; border-radius:50%; background:#fff; display:block; transition:transform .1s ease; }
   .shutter:active span{ transform:scale(.82); }
 
-  .genre-pick{ margin-top:14px; }
+  .genre-pick{ margin-top:14px; position:relative; }
   .genre-pick-label{ font-family:var(--mono); font-size:.62rem; color:#8a827a; letter-spacing:.06em; margin-bottom:8px; }
   .genre-chips{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
   .genre-chips::-webkit-scrollbar{ display:none; }
+  .genre-pick::after{
+    content:''; position:absolute; right:0; top:22px; bottom:4px; width:28px; pointer-events:none;
+    background:linear-gradient(to right, transparent, var(--bg));
+  }
   .g-chip{
     flex:none; font-family:var(--display); font-weight:700; font-size:.76rem; color:#fff;
     background:#ffffff14; border:1.5px solid #ffffff2a; padding:.5em .9em; border-radius:100px; white-space:nowrap;
@@ -385,14 +415,17 @@
   .tab.plus:active{ transform:scale(.88); }
 </style>
 
-<span class="badge-wip">プロトタイプ・確認用(この上の色は仮名称"Spark"のまま)</span>
-<div class="demo-toggle" id="demoToggle" onclick="toggleDemo()">
-  <span id="demoLabel">プレビュー相手: 中学生以上(DM解禁)</span>
-  <span class="sw"><i></i></span>
-</div>
-<div class="demo-btn-row">
-  <button class="demo-btn" onclick="openOnboard()">登録画面を見る</button>
-  <button class="demo-btn" onclick="openContact()">お問い合わせを見る</button>
+<button class="dev-fab" id="devFab" onclick="toggleDevPanel()">⚙</button>
+<div class="dev-panel" id="devPanel">
+  <span class="badge-wip">プロトタイプ・確認用(この上の色は仮名称"Spark"のまま)</span>
+  <div class="demo-toggle" id="demoToggle" onclick="toggleDemo()">
+    <span id="demoLabel">プレビュー相手: 中学生以上(DM解禁)</span>
+    <span class="sw"><i></i></span>
+  </div>
+  <div class="demo-btn-row">
+    <button class="demo-btn" onclick="openOnboard()">登録画面を見る</button>
+    <button class="demo-btn" onclick="openContact()">お問い合わせを見る</button>
+  </div>
 </div>
 
 <div class="device">
@@ -547,6 +580,16 @@
           <button class="g-chip" data-g="#株・投資">#株・投資</button>
           <button class="g-chip" data-g="#ビットコイン">#ビットコイン</button>
           <button class="g-chip" data-g="#政治">#政治</button>
+          <button class="g-chip" data-g="#スタートアップ">#スタートアップ</button>
+          <button class="g-chip" data-g="#Web3">#Web3</button>
+          <button class="g-chip" data-g="#ゲーム開発">#ゲーム開発</button>
+          <button class="g-chip" data-g="#ハードウェア">#ハードウェア</button>
+          <button class="g-chip" data-g="#VR・AR">#VR・AR</button>
+          <button class="g-chip" data-g="#フィンテック">#フィンテック</button>
+          <button class="g-chip" data-g="#サイバーセキュリティ">#サイバーセキュリティ</button>
+          <button class="g-chip" data-g="#教育">#教育</button>
+          <button class="g-chip" data-g="#環境・クリーンテック">#環境・クリーンテック</button>
+          <button class="g-chip" data-g="#eスポーツ">#eスポーツ</button>
         </div>
       </div>
 
@@ -641,6 +684,16 @@
           <button class="g-chip" data-g="#株・投資" onclick="toggleObGenre(this)">#株・投資</button>
           <button class="g-chip" data-g="#ビットコイン" onclick="toggleObGenre(this)">#ビットコイン</button>
           <button class="g-chip" data-g="#政治" onclick="toggleObGenre(this)">#政治</button>
+          <button class="g-chip" data-g="#スタートアップ" onclick="toggleObGenre(this)">#スタートアップ</button>
+          <button class="g-chip" data-g="#Web3" onclick="toggleObGenre(this)">#Web3</button>
+          <button class="g-chip" data-g="#ゲーム開発" onclick="toggleObGenre(this)">#ゲーム開発</button>
+          <button class="g-chip" data-g="#ハードウェア" onclick="toggleObGenre(this)">#ハードウェア</button>
+          <button class="g-chip" data-g="#VR・AR" onclick="toggleObGenre(this)">#VR・AR</button>
+          <button class="g-chip" data-g="#フィンテック" onclick="toggleObGenre(this)">#フィンテック</button>
+          <button class="g-chip" data-g="#サイバーセキュリティ" onclick="toggleObGenre(this)">#サイバーセキュリティ</button>
+          <button class="g-chip" data-g="#教育" onclick="toggleObGenre(this)">#教育</button>
+          <button class="g-chip" data-g="#環境・クリーンテック" onclick="toggleObGenre(this)">#環境・クリーンテック</button>
+          <button class="g-chip" data-g="#eスポーツ" onclick="toggleObGenre(this)">#eスポーツ</button>
         </div>
       </div>
     </div>
@@ -689,9 +742,13 @@
     var deviceEl = document.querySelector('.device');
     var scaleEl = document.getElementById('deviceScale');
     function applyScale(){
-      var w = deviceEl.clientWidth; // 枠線を除いた内側の幅
-      var s = w / 390;
+      var w = deviceEl.clientWidth, h = deviceEl.clientHeight;
+      // 実機は390:844ぴったりとは限らないため、縦横どちらか厳しい方に合わせて
+      // 中身がはみ出さないようにし、余った分は中央寄せする(レターボックス)
+      var s = Math.min(w / 390, h / 844);
       scaleEl.style.zoom = s;
+      scaleEl.style.left = Math.max(0, (w - 390 * s) / 2) + 'px';
+      scaleEl.style.top = Math.max(0, (h - 844 * s) / 2) + 'px';
       currentZoom = s;
     }
     applyScale();
@@ -794,7 +851,16 @@
     var q = (document.getElementById('dmSearch').value || '').trim();
     list.innerHTML = '';
     var filtered = connections.filter(function(c){ return c.name.indexOf(q) !== -1; });
-    if(connections.length === 0){ empty.classList.add('show'); return; }
+    if(connections.length === 0){
+      empty.textContent = 'まだ誰ともDMできる関係になっていません。ホームでフォローしてつながりましょう。';
+      empty.classList.add('show');
+      return;
+    }
+    if(filtered.length === 0){
+      empty.textContent = '「' + q + '」に一致する相手が見つかりませんでした。';
+      empty.classList.add('show');
+      return;
+    }
     empty.classList.remove('show');
     filtered.forEach(function(c){
       var row = document.createElement('div');
@@ -965,6 +1031,10 @@
     closeContact();
   }
 
+  function toggleDevPanel(){
+    document.getElementById('devPanel').classList.toggle('open');
+  }
+
   function toggleDemo(){
     eligible = !eligible;
     var el = document.getElementById('demoToggle');
@@ -1009,10 +1079,12 @@
       startX = e.clientX; startY = e.clientY;
       card.style.transition = 'none';
       card.setPointerCapture(e.pointerId);
+      e.preventDefault();
     });
 
     card.addEventListener('pointermove', function(e){
       if(!dragging) return;
+      e.preventDefault();
       dx = (e.clientX - startX) / currentZoom; dy = (e.clientY - startY) / currentZoom;
       if(Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
       card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + (dx / 18) + 'deg)';
