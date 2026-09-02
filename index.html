@@ -1,0 +1,1140 @@
+<title>Spark Feed Skeleton</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+  :root{
+    --frame:#050505;
+    --bg:#141414;
+    --orange:#ff7a1a;
+    --orange-deep:#e05e05;
+    --orange-soft:#ff7a1a22;
+    --paper:#ffffff;
+    --ink:#181410;
+    --ink-muted:#7a736c;
+    --ink-faint:#b9b2a9;
+    --line:#eee7dd;
+    --display:'Zen Maru Gothic','Hiragino Maru Gothic ProN',sans-serif;
+    --body:'Noto Sans JP','Hiragino Sans',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{ height:100%; }
+  body{
+    background:var(--frame); color:var(--ink); font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    min-height:100svh; padding:28px 14px; overflow:auto;
+  }
+  h1,h2,h3{ font-family:var(--display); }
+  button{ font-family:var(--body); cursor:pointer; }
+
+  .badge-wip{
+    font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+    color:#8a8a8a; border:1px dashed #333; padding:.5em 1em; border-radius:100px;
+  }
+  .demo-toggle{
+    display:flex; align-items:center; gap:10px; background:#1c1c1c; border:1px solid #333; border-radius:100px;
+    padding:6px 6px 6px 14px; font-size:.72rem; color:#cfcfcf;
+  }
+  .demo-toggle .sw{ width:42px; height:24px; border-radius:100px; background:#3a3a3a; position:relative; transition:background .2s; }
+  .demo-toggle .sw i{ position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
+  .demo-toggle.on .sw{ background:var(--orange); }
+  .demo-toggle.on .sw i{ transform:translateX(18px); }
+  .demo-btn-row{ display:flex; gap:8px; }
+  .demo-btn{
+    background:#1c1c1c; border:1px solid #333; color:#cfcfcf; font-size:.72rem; font-family:var(--body);
+    padding:.6em 1.1em; border-radius:100px;
+  }
+  .demo-btn:active{ background:#2a2a2a; }
+
+  /* ---- device ----
+     .device は縦横比だけを決める外枠(パネルに合わせて縮む)。
+     中身は常に390x844で組み、device-scaleにzoomを掛けて
+     縮小率をJSで合わせる(固定px中身がはみ出さないようにするため)。
+     transform:scaleだと丸め誤差で下端に隙間が出たため、レイアウト自体を
+     縮小するzoomに変更(誤差が起きない)。 */
+  .device{
+    aspect-ratio:390/844; height:min(844px,88svh); width:auto; max-width:100%; background:var(--bg);
+    border-radius:44px; border:9px solid #000; box-shadow:0 40px 80px -20px #000c, inset 0 0 0 1px #ffffff10;
+    overflow:hidden; position:relative;
+  }
+  .device-scale{
+    width:390px; height:844px; position:absolute; top:0; left:0;
+    display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:24px; background:#000; border-radius:0 0 18px 18px; z-index:30; }
+
+  .topbar{ padding:22px 18px 8px; display:flex; align-items:center; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:7px; }
+  .brand svg{ width:20px; height:20px; display:block; }
+  .brand-name{ font-family:var(--display); font-weight:900; font-size:1rem; color:#fff; }
+  .brand-name .tag{ font-family:var(--mono); font-size:.5rem; color:#777; letter-spacing:.06em; margin-left:.4em; border:1px solid #333; padding:.15em .4em; border-radius:4px; vertical-align:middle; }
+  .streak{
+    display:flex; align-items:baseline; gap:4px; color:var(--orange); font-family:var(--mono); font-size:.78rem; font-weight:600;
+    background:none; border:none;
+  }
+  .streak .streak-label{ font-size:.62rem; color:#a88; margin-left:1px; }
+
+  .popover{
+    position:absolute; top:56px; z-index:40; width:220px; background:#1c1c1c; border:1px solid #333;
+    border-radius:16px; padding:14px; box-shadow:0 20px 40px -12px #000a; display:none;
+  }
+  .popover.open{ display:block; }
+  .popover h4{ font-family:var(--display); font-size:.85rem; color:#fff; margin-bottom:6px; }
+  .popover p{ font-size:.72rem; color:#aaa; line-height:1.6; }
+  .popover .row{ display:flex; justify-content:space-between; font-size:.76rem; color:#ddd; padding:5px 0; border-top:1px solid #2c2c2c; }
+  .popover .row:first-of-type{ border-top:none; }
+  #streakPop{ right:18px; }
+  #morePop{ right:18px; }
+
+  .feed{ flex:1; min-height:0; position:relative; }
+  .view{ position:absolute; inset:0; padding:6px 16px 0; display:none; flex-direction:column; overflow-y:auto; scrollbar-width:none; }
+  .view::-webkit-scrollbar{ display:none; }
+  .view.active{ display:flex; }
+
+  /* ---- card ---- */
+  .card-zone{ position:relative; flex:1; min-height:0; margin-top:6px; }
+  .postcard{
+    position:absolute; inset:0; border-radius:26px; background:var(--orange);
+    padding:6px; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px -14px #00000080;
+    transition:transform .35s ease, opacity .35s ease;
+  }
+  .postcard .photo{
+    position:relative; flex:1; border-radius:20px; overflow:hidden; background:#111820;
+  }
+  .postcard .photo::after{ content:''; position:absolute; inset:0; background:linear-gradient(to top,#000000b0,transparent 45%); }
+  .genre-chip{
+    position:absolute; left:12px; top:12px; z-index:2;
+    background:#fff; color:var(--orange-deep); font-family:var(--display);
+    font-weight:700; font-size:.68rem; padding:.4em .8em; border-radius:100px; white-space:nowrap;
+    max-width:calc(100% - 24px); overflow:hidden; text-overflow:ellipsis;
+  }
+  .postmeta{
+    position:absolute; left:12px; right:12px; bottom:12px; z-index:2;
+    display:flex; align-items:center; gap:8px; min-width:0;
+  }
+  .swipe-stamp{
+    position:absolute; top:20px; z-index:3; font-family:var(--display); font-weight:900; font-size:1.1rem;
+    padding:.35em .8em; border-radius:10px; border:3px solid; opacity:0; pointer-events:none;
+    text-transform:none; letter-spacing:.02em;
+  }
+  .swipe-stamp.like{ left:16px; color:#3ddc74; border-color:#3ddc74; transform:rotate(-14deg); background:#0a1c0f99; }
+  .swipe-stamp.pass{ right:16px; color:#ff5a5a; border-color:#ff5a5a; transform:rotate(14deg); background:#1c0a0a99; }
+  .swipe-stamp.hold{ left:50%; transform:translateX(-50%); color:#ffd23f; border-color:#ffd23f; background:#1c17099; }
+  .swipe-hint{
+    text-align:center; font-family:var(--mono); font-size:.62rem; color:#8a827a; padding:8px 0 4px; letter-spacing:.02em;
+  }
+
+  .view-title{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:14px; }
+  .view-sub{ font-size:.74rem; color:#9a9490; margin-top:4px; line-height:1.6; }
+  .likes-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; padding-bottom:16px; }
+  .likes-grid .l-thumb{
+    aspect-ratio:1; border-radius:14px; position:relative; display:flex; align-items:flex-end; padding:8px; overflow:hidden;
+  }
+  .likes-grid .l-thumb .l-name{ font-family:var(--display); font-weight:700; font-size:.72rem; color:#fff; }
+  .likes-empty{ display:none; text-align:center; font-size:.78rem; color:#7a736c; margin-top:60px; line-height:1.8; }
+  .likes-empty.show{ display:block; }
+
+  /* ---- DM一覧 ---- */
+  .dm-search{
+    width:100%; margin-top:14px; background:#ffffff0f; border:1px solid #ffffff22; border-radius:100px;
+    padding:.7em 1.1em; color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .dm-search::placeholder{ color:#7a736c; }
+  .dm-note{ font-size:.68rem; color:#7a736c; margin-top:8px; line-height:1.6; }
+  .dm-list{ margin-top:10px; padding-bottom:16px; }
+  .dm-row{
+    display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid #ffffff10;
+  }
+  .dm-row .avatar{ width:44px; height:44px; }
+  .dm-row .dm-meta{ flex:1; min-width:0; }
+  .dm-row .dm-name{ font-family:var(--display); font-weight:700; font-size:.88rem; color:#fff; }
+  .dm-row .dm-last{
+    font-size:.74rem; color:#9a9490; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .dm-empty{ display:none; text-align:center; font-size:.78rem; color:#7a736c; margin-top:60px; line-height:1.8; }
+  .dm-empty.show{ display:block; }
+
+  /* ---- DMチャット ---- */
+  .dm-chat-overlay{
+    position:absolute; inset:0; z-index:55; background:var(--bg);
+    display:none; flex-direction:column;
+  }
+  .dm-chat-overlay.open{ display:flex; }
+  .dm-chat-top{
+    display:flex; align-items:center; gap:10px; padding:18px; border-bottom:1px solid #ffffff12;
+  }
+  .dm-chat-avatar{ width:34px; height:34px; border-radius:50%; flex:none; }
+  .dm-chat-name{ flex:1; font-family:var(--display); font-weight:700; font-size:.92rem; color:#fff; }
+  .dm-messages{ flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; scrollbar-width:none; }
+  .dm-messages::-webkit-scrollbar{ display:none; }
+  .dm-bubble{
+    max-width:75%; padding:.7em 1em; border-radius:16px; font-size:.82rem; line-height:1.5; word-break:break-word;
+  }
+  .dm-bubble.them{ align-self:flex-start; background:#ffffff14; color:#fff; border-bottom-left-radius:4px; }
+  .dm-bubble.me{ align-self:flex-end; background:var(--orange); color:#20140a; border-bottom-right-radius:4px; }
+  .dm-input-row{ display:flex; gap:8px; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid #ffffff12; }
+  .dm-input{
+    flex:1; min-width:0; background:#ffffff0f; border:1px solid #ffffff22; border-radius:100px;
+    padding:.7em 1.1em; color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .dm-input::placeholder{ color:#7a736c; }
+  .dm-send{
+    width:38px; height:38px; aspect-ratio:1; border-radius:50%; background:var(--orange); color:#20140a;
+    border:none; flex:none; font-size:1rem;
+  }
+
+  /* ---- 登録(オンボーディング) ---- */
+  .onboard-overlay{ position:absolute; inset:0; z-index:80; background:var(--bg); display:none; flex-direction:column; }
+  .onboard-overlay.open{ display:flex; }
+  .onboard-top{ display:flex; align-items:center; gap:10px; padding:18px; }
+  .onboard-steps{ display:flex; gap:5px; flex:1; }
+  .onboard-steps i{ flex:1; height:3px; border-radius:100px; background:#ffffff1a; }
+  .onboard-steps i.done{ background:var(--orange); }
+  .onboard-body{ flex:1; min-height:0; overflow-y:auto; padding:6px 22px 20px; scrollbar-width:none; }
+  .onboard-body::-webkit-scrollbar{ display:none; }
+  .onboard-body h2{ font-size:1.25rem; color:#fff; margin-top:6px; }
+  .onboard-body .sub{ font-size:.78rem; color:#9a9490; margin-top:6px; line-height:1.6; }
+  .age-option{
+    display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px;
+    background:#ffffff0d; border:1.5px solid #ffffff1f; border-radius:16px; padding:14px 16px; color:#fff; text-align:left;
+  }
+  .age-option .t{ font-family:var(--display); font-weight:700; font-size:.9rem; }
+  .age-option .d{ font-size:.68rem; color:#9a9490; margin-top:2px; }
+  .age-option.sel{ border-color:var(--orange); background:#ff7a1a1a; }
+  .consent-box{
+    margin-top:16px; background:#ffffff0d; border:1px solid #ffffff1f; border-radius:16px; padding:16px;
+  }
+  .consent-box label{ font-size:.72rem; color:#9a9490; display:block; margin-bottom:6px; }
+  .consent-box input[type=email]{
+    width:100%; background:#00000030; border:1px solid #ffffff22; border-radius:10px; padding:.7em .9em;
+    color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .agree-row{ display:flex; align-items:flex-start; gap:10px; margin-top:16px; font-size:.76rem; color:#c9c4bd; line-height:1.6; }
+  .agree-row a{ color:var(--orange); }
+  .onboard-genres{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .onboard-bottom{ padding:16px 22px calc(18px + env(safe-area-inset-bottom)); }
+  .onboard-next{
+    width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
+    font-size:.92rem; padding:.9em; border-radius:100px; opacity:1;
+  }
+  .onboard-next:disabled{ opacity:.35; }
+  .onboard-step{ display:none; }
+  .onboard-step.active{ display:block; }
+
+  /* ---- お問い合わせ ---- */
+  .contact-overlay{ position:absolute; inset:0; z-index:80; background:var(--bg); display:none; flex-direction:column; }
+  .contact-overlay.open{ display:flex; }
+  .contact-body{ flex:1; min-height:0; overflow-y:auto; padding:6px 20px 20px; scrollbar-width:none; }
+  .contact-body::-webkit-scrollbar{ display:none; }
+  .contact-cat{
+    display:flex; align-items:flex-start; gap:12px; width:100%; text-align:left; margin-top:12px;
+    background:#ffffff0d; border:1px solid #ffffff1f; border-radius:16px; padding:14px 16px; color:#fff;
+  }
+  .contact-cat .ic{ font-size:1.2rem; flex:none; }
+  .contact-cat .t{ font-family:var(--display); font-weight:700; font-size:.86rem; }
+  .contact-cat .d{ font-size:.7rem; color:#9a9490; margin-top:3px; line-height:1.5; }
+  .contact-form{ display:none; margin-top:16px; }
+  .contact-form.show{ display:block; }
+  .contact-form textarea{
+    width:100%; min-height:120px; background:#ffffff0d; border:1px solid #ffffff22; border-radius:14px;
+    padding:12px; color:#fff; font-size:.82rem; font-family:var(--body); resize:none; margin-top:10px;
+  }
+  .contact-form input{
+    width:100%; background:#ffffff0d; border:1px solid #ffffff22; border-radius:12px;
+    padding:.8em 1em; color:#fff; font-size:.82rem; font-family:var(--body); margin-top:10px;
+  }
+  .contact-send{
+    width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
+    font-size:.9rem; padding:.85em; border-radius:100px; margin-top:14px;
+  }
+  .avatar{ width:36px; height:36px; border-radius:50%; background:linear-gradient(160deg,#ffd08a,#ff7a1a); border:2px solid #fff; flex:none; }
+  .postmeta .name{
+    flex:1 1 auto; min-width:0;
+    font-family:var(--display); font-weight:700; font-size:.95rem; color:#fff;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  .card-actions{ display:flex; align-items:center; gap:10px; padding:10px 4px 2px; }
+  .icon-circle{
+    flex:none; width:48px; height:48px; border-radius:50%; background:#fff; color:var(--orange-deep);
+    border:none; display:flex; align-items:center; justify-content:center; transform:scale(1); transition:transform .12s ease;
+  }
+  .icon-circle:active{ transform:scale(.9); }
+  .icon-circle svg{ width:20px; height:20px; }
+  .pill-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+    background:#20140a; color:#fff; border:none; border-radius:100px; padding:.9em 1em;
+    font-weight:700; font-size:.9rem; transform:scale(1); transition:transform .12s ease, background .15s ease;
+    white-space:nowrap;
+  }
+  .pill-btn:active{ transform:scale(.94); }
+  .pill-btn.follow.following{ background:#00000030; color:#fff2e6; }
+
+  /* ---- profile ---- */
+  .p-headrow{ display:flex; align-items:center; justify-content:space-between; padding-top:8px; }
+  .p-handle{ font-family:var(--mono); font-size:.92rem; color:#fff; font-weight:600; }
+  .dots-btn{
+    background:#ffffff14; border:none; color:#fff; width:34px; height:34px; border-radius:50%; aspect-ratio:1; flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:1.1rem; letter-spacing:1px;
+  }
+  .p-main{ display:flex; align-items:flex-start; gap:12px; margin-top:16px; }
+  .p-avatar{ width:64px; height:64px; border-radius:50%; flex:none; background:linear-gradient(160deg,#ffd08a,#ff7a1a); border:2px solid #fff; }
+  .p-bio{
+    flex:1; min-width:0; background:none; border:1.5px solid var(--orange); border-radius:12px; padding:8px 10px;
+    font-size:.76rem; color:#e6e2da; line-height:1.5;
+  }
+  .p-username{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:10px; }
+
+  .p-stats{ display:flex; gap:10px; margin-top:16px; }
+  .p-stat{ flex:1; background:#ffffff0d; border-radius:12px; padding:10px; text-align:center; }
+  .p-stat b{ display:block; font-family:var(--mono); font-size:1.05rem; color:#fff; }
+  .p-stat span{ font-size:.64rem; color:#9a9490; }
+
+  .ephemeral-head{ margin-top:20px; }
+  .mono-tag{
+    font-family:var(--mono); font-size:.65rem; letter-spacing:.08em; color:var(--orange);
+    border:1px solid var(--orange); padding:.3em .7em; border-radius:100px;
+  }
+  .ephemeral-head p{ font-size:.72rem; color:#9a9490; margin-top:6px; line-height:1.6; }
+  .ephemeral-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; padding-bottom:16px; }
+  .e-thumb{
+    aspect-ratio:1; border-radius:14px; position:relative; display:flex; align-items:flex-end; padding:8px;
+  }
+  .e-thumb span{ font-family:var(--mono); font-size:.62rem; color:#fff; background:#00000090; padding:.3em .6em; border-radius:100px; }
+  .e-empty{
+    aspect-ratio:1; border-radius:14px; border:1.5px dashed #444; display:flex; align-items:center; justify-content:center;
+    text-align:center; font-size:.7rem; color:#777; padding:10px;
+  }
+
+  /* ---- camera ---- */
+  .camera-overlay{
+    position:absolute; inset:0; z-index:50; background:#000;
+    display:none; flex-direction:column;
+  }
+  .camera-overlay.open{ display:flex; }
+  .cam-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:60; }
+  .cam-stage{ flex:1; display:flex; flex-direction:column; padding:18px; min-height:0; }
+  .cam-top{ display:flex; align-items:center; justify-content:space-between; }
+  .cam-x{
+    width:34px; height:34px; aspect-ratio:1; border-radius:50%; background:#ffffff1a; border:none; color:#fff;
+    font-size:1rem; flex:none;
+  }
+  .cam-hint{ font-family:var(--mono); font-size:.68rem; color:#ffffffaa; letter-spacing:.04em; }
+  .viewfinder{
+    flex:1; min-height:0; margin-top:14px; border-radius:24px; overflow:hidden; position:relative;
+    background:radial-gradient(120% 90% at 30% 20%,#2a2f3a,#0a0c10 70%);
+  }
+  .vf-grid{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(to right, #ffffff14 1px, transparent 1px),
+      linear-gradient(to bottom, #ffffff14 1px, transparent 1px);
+    background-size:33.33% 33.33%;
+  }
+  .cam-bottom{ display:flex; justify-content:center; align-items:center; padding-top:20px; }
+  .shutter{
+    width:72px; height:72px; aspect-ratio:1; border-radius:50%; background:none; border:4px solid #fff;
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .shutter span{ width:58px; height:58px; border-radius:50%; background:#fff; display:block; transition:transform .1s ease; }
+  .shutter:active span{ transform:scale(.82); }
+
+  .genre-pick{ margin-top:14px; }
+  .genre-pick-label{ font-family:var(--mono); font-size:.62rem; color:#8a827a; letter-spacing:.06em; margin-bottom:8px; }
+  .genre-chips{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+  .genre-chips::-webkit-scrollbar{ display:none; }
+  .g-chip{
+    flex:none; font-family:var(--display); font-weight:700; font-size:.76rem; color:#fff;
+    background:#ffffff14; border:1.5px solid #ffffff2a; padding:.5em .9em; border-radius:100px; white-space:nowrap;
+  }
+  .g-chip.sel{ background:var(--orange); color:#20140a; border-color:var(--orange); }
+
+  .retake-link{ background:none; border:none; color:#aaa; font-size:.82rem; text-decoration:underline; }
+  .post-btn{
+    background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700; font-size:.92rem;
+    padding:.85em 1.8em; border-radius:100px; opacity:.4;
+  }
+  .post-btn.ready{ opacity:1; }
+
+  .toast{
+    position:absolute; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); z-index:70;
+    background:#fff; color:#20140a; font-family:var(--display); font-weight:700; font-size:.8rem;
+    padding:.8em 1.2em; border-radius:100px; white-space:nowrap; opacity:0; transition:opacity .25s ease, transform .25s ease;
+    pointer-events:none; /* 非表示中でも当たり判定だけ残ってボタンを覆っていたのを防ぐ */
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---- bottom nav ---- */
+  .tabbar{
+    position:relative; z-index:20; display:flex; align-items:center; justify-content:space-around;
+    padding:10px 10px calc(14px + env(safe-area-inset-bottom)); margin-top:8px;
+    background:var(--orange);
+  }
+  .tab{ background:none; border:none; color:#7a3d10; width:42px; height:42px; aspect-ratio:1; flex:none; padding:0; line-height:0; border-radius:14px; display:flex; align-items:center; justify-content:center; transform:scale(1); transition:transform .12s ease, color .12s ease; position:relative; }
+  .tab:active{ transform:scale(.86); }
+  .tab.active{ color:#20140a; }
+  .tab.active::after{
+    content:''; position:absolute; bottom:-7px; left:50%; transform:translateX(-50%);
+    width:4px; height:4px; border-radius:50%; background:#20140a;
+  }
+  .tab svg{ width:22px; height:22px; }
+  .tab.plus{ width:54px; height:54px; aspect-ratio:1; border-radius:50%; background:#20140a; color:#fff; margin-top:-14px; box-shadow:0 8px 18px -6px #00000080; }
+  .tab.plus svg{ width:24px; height:24px; }
+  .tab.plus:active{ transform:scale(.88); }
+</style>
+
+<span class="badge-wip">プロトタイプ・確認用(この上の色は仮名称"Spark"のまま)</span>
+<div class="demo-toggle" id="demoToggle" onclick="toggleDemo()">
+  <span id="demoLabel">プレビュー相手: 中学生以上(DM解禁)</span>
+  <span class="sw"><i></i></span>
+</div>
+<div class="demo-btn-row">
+  <button class="demo-btn" onclick="openOnboard()">登録画面を見る</button>
+  <button class="demo-btn" onclick="openContact()">お問い合わせを見る</button>
+</div>
+
+<div class="device">
+ <div class="device-scale" id="deviceScale">
+  <div class="notch"></div>
+
+  <div class="topbar" style="position:relative;">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 1 L14.5 9 L23 12 L14.5 15 L12 23 L9.5 15 L1 12 L9.5 9 Z" fill="#ff7a1a"/></svg>
+      <span class="brand-name">Spark<span class="tag">仮</span></span>
+    </div>
+    <button class="streak" onclick="togglePop('streakPop')" title="タップで詳細">
+      🔥 <span id="streakDays">12</span><span class="streak-label">日連続</span>
+    </button>
+    <div class="popover" id="streakPop">
+      <h4>連続投稿ポイント</h4>
+      <p>毎日投稿すると連続日数が伸びます。ポイントが貯まると、プロフィールバッジやDiscoverでの表示アップなどと交換できます(お金には交換できません)。</p>
+    </div>
+  </div>
+
+  <div class="feed">
+    <div class="view active" id="view-feed">
+    <div class="card-zone" id="stack">
+      <div class="postcard" id="card">
+        <div class="photo" id="cardPhoto">
+          <div class="genre-chip" id="cardGenre"></div>
+          <div class="swipe-stamp like" id="stampLike">興味あり</div>
+          <div class="swipe-stamp pass" id="stampPass">興味なし</div>
+          <div class="swipe-stamp hold" id="stampHold">保留</div>
+          <div class="postmeta">
+            <div class="avatar" id="cardAvatar"></div>
+            <div class="name" id="cardName"></div>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="icon-circle" onclick="bump(this)" title="コメント">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H7l-3 3z"/></svg>
+          </button>
+          <button class="pill-btn follow" id="followBtn" onclick="onFollow(this)">フォロー</button>
+        </div>
+      </div>
+    </div>
+    <p class="swipe-hint">← 興味なし&nbsp;&nbsp;/&nbsp;&nbsp;↑ 保留&nbsp;&nbsp;/&nbsp;&nbsp;興味あり →</p>
+    </div>
+
+    <div class="view" id="view-likes">
+      <div class="view-title">いいねした投稿</div>
+      <p class="view-sub">投稿から24時間経っても、あなたの「興味あり」履歴には残り続けます。</p>
+      <div class="likes-grid" id="likesGrid"></div>
+      <div class="likes-empty" id="likesEmpty">まだ「興味あり」にした投稿がありません。右にスワイプすると、ここに残ります。</div>
+    </div>
+
+    <div class="view" id="view-dm">
+      <div class="view-title">DM</div>
+      <input class="dm-search" id="dmSearch" placeholder="つながっている人を検索" oninput="renderDmList()">
+      <p class="dm-note">DMできるのは、お互いフォローし合っていて条件を満たした相手だけです。</p>
+      <div class="dm-list" id="dmList"></div>
+      <div class="dm-empty" id="dmEmpty">まだ誰ともDMできる関係になっていません。ホームでフォローしてつながりましょう。</div>
+    </div>
+
+    <div class="view" id="view-profile" style="position:relative;">
+      <div class="p-headrow">
+        <div class="p-handle">@spark_user01</div>
+        <button class="dots-btn" onclick="togglePop('morePop')">⋯</button>
+      </div>
+      <div class="popover" id="morePop" style="top:44px;">
+        <div class="row"><span>フォロワー</span><span>128人</span></div>
+        <div class="row"><span>利用開始</span><span>2026年3月</span></div>
+        <div class="row"><span style="color:#ff8a70;">通報する</span><span>›</span></div>
+      </div>
+
+      <div class="p-main">
+        <div class="p-avatar"></div>
+        <div class="p-bio">ロボット作るの好きです。一緒に作ってくれる人募集中!</div>
+      </div>
+      <div class="p-username">ユーザー名</div>
+
+      <div class="p-stats">
+        <div class="p-stat"><b id="pPoints">340</b><span>ポイント</span></div>
+        <div class="p-stat"><b>128</b><span>フォロワー</span></div>
+        <div class="p-stat"><b>12</b><span>投稿</span></div>
+      </div>
+
+      <div class="ephemeral-head">
+        <span class="mono-tag">24時間限定</span>
+        <p>投稿は24時間で消えます。「今」のリアルだけがみんなに見えています。</p>
+      </div>
+      <div class="ephemeral-grid">
+        <div class="e-thumb" style="background:linear-gradient(160deg,#111820,#0a0d12);"><span>18時間前</span></div>
+        <div class="e-thumb" style="background:linear-gradient(160deg,#241226,#120a16);"><span>4時間前</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab active" title="ホーム(スワイプで発見)" onclick="switchView('feed', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg>
+    </button>
+    <button class="tab" title="いいねした投稿(24時間制限なし)" onclick="switchView('likes', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.2C.5 8 2.4 4 6.4 4c2 0 3.6 1.2 4.4 2.7C11.6 5.2 13.2 4 15.2 4c4 0 5.9 4 4.4 7.8-2.5 4.6-10 9.2-10 9.2z"/></svg>
+    </button>
+    <button class="tab plus" title="撮影して投稿" onclick="bump(this); openCamera();">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tab" title="DM" id="dmTab" onclick="switchView('dm', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-8.9 8.4 9 9 0 0 1-3.8-.9L3 20l1.1-4.5A8.4 8.4 0 1 1 21 11.5z"/></svg>
+    </button>
+    <button class="tab" title="プロフィール" onclick="switchView('profile', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+    </button>
+  </div>
+
+  <!-- 撮影画面(モーダル・下タブとは別扱い) -->
+  <div class="camera-overlay" id="cameraOverlay">
+    <div class="cam-flash" id="camFlash"></div>
+
+    <div class="cam-stage" id="camStage">
+      <div class="cam-top">
+        <button class="cam-x" onclick="closeCamera()">✕</button>
+        <span class="cam-hint">今の1枚だけ・加工なし</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="viewfinder" id="viewfinder">
+        <div class="vf-grid"></div>
+      </div>
+      <div class="cam-bottom">
+        <button class="shutter" onclick="takeShot()"><span></span></button>
+      </div>
+    </div>
+
+    <div class="cam-stage" id="previewStage" style="display:none;">
+      <div class="cam-top">
+        <button class="cam-x" onclick="retake()">✕</button>
+        <span class="cam-hint">プレビュー</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="viewfinder" id="previewPhoto"></div>
+
+      <div class="genre-pick">
+        <div class="genre-pick-label">ジャンルを選ぶ</div>
+        <div class="genre-chips" id="genreChips">
+          <button class="g-chip" data-g="#プログラミング">#プログラミング</button>
+          <button class="g-chip" data-g="#ロボット">#ロボット</button>
+          <button class="g-chip" data-g="#AI">#AI</button>
+          <button class="g-chip" data-g="#ものづくり">#ものづくり</button>
+          <button class="g-chip" data-g="#起業">#起業</button>
+          <button class="g-chip" data-g="#デザイン">#デザイン</button>
+          <button class="g-chip" data-g="#宇宙">#宇宙</button>
+          <button class="g-chip" data-g="#車・EV">#車・EV</button>
+          <button class="g-chip" data-g="#マーケティング">#マーケティング</button>
+          <button class="g-chip" data-g="#経営">#経営</button>
+          <button class="g-chip" data-g="#株・投資">#株・投資</button>
+          <button class="g-chip" data-g="#ビットコイン">#ビットコイン</button>
+          <button class="g-chip" data-g="#政治">#政治</button>
+        </div>
+      </div>
+
+      <div class="cam-bottom" style="justify-content:space-between; padding:0 24px;">
+        <button class="retake-link" onclick="retake()">撮り直す</button>
+        <button class="post-btn" id="postBtn" onclick="postShot()">投稿する</button>
+      </div>
+    </div>
+
+    <div class="toast" id="postToast">投稿しました・24時間表示されます 🔥+1</div>
+  </div>
+
+  <!-- DMチャット画面(モーダル) -->
+  <div class="dm-chat-overlay" id="dmChatOverlay">
+    <div class="dm-chat-top">
+      <button class="cam-x" onclick="closeDmChat()">‹</button>
+      <div class="dm-chat-avatar" id="chatAvatar"></div>
+      <div class="dm-chat-name" id="chatName"></div>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="dm-messages" id="dmMessages"></div>
+    <div class="dm-input-row">
+      <input class="dm-input" id="dmInput" placeholder="メッセージを入力" onkeydown="if(event.key==='Enter') sendDm();">
+      <button class="dm-send" onclick="sendDm()">→</button>
+    </div>
+  </div>
+
+  <!-- 新規登録(オンボーディング) -->
+  <div class="onboard-overlay" id="onboardOverlay">
+    <div class="onboard-top">
+      <button class="cam-x" onclick="closeOnboard()">✕</button>
+      <div class="onboard-steps"><i id="obs1"></i><i id="obs2"></i><i id="obs3"></i><i id="obs4"></i></div>
+      <span style="width:34px;"></span>
+    </div>
+
+    <div class="onboard-body">
+      <div class="onboard-step active" id="obStep1">
+        <h2>年齢を教えてください</h2>
+        <p class="sub">年齢に応じて使える機能が変わります(安全のためのしくみです)</p>
+        <button class="age-option" data-age="elem" onclick="selectAge(this)">
+          <div><div class="t">小学5・6年生</div><div class="d">投稿の閲覧・投稿・コメントのみ</div></div>
+        </button>
+        <button class="age-option" data-age="teen" onclick="selectAge(this)">
+          <div><div class="t">中学生〜17歳</div><div class="d">DM・プロジェクトマッチングも利用可</div></div>
+        </button>
+        <button class="age-option" data-age="adult" onclick="selectAge(this)">
+          <div><div class="t">18歳以上</div><div class="d">保護者同意の制限なし</div></div>
+        </button>
+      </div>
+
+      <div class="onboard-step" id="obStep2">
+        <h2>電話番号認証</h2>
+        <p class="sub">なりすまし防止のため、全員に電話番号認証をお願いしています。SMSで確認コードを送ります。</p>
+        <div class="consent-box">
+          <label>電話番号</label>
+          <input type="tel" id="phoneInput" placeholder="090-1234-5678" oninput="updateNextBtn()">
+        </div>
+        <button class="demo-btn" style="margin-top:10px;" onclick="mockSendCode()">確認コードを送信(デモ)</button>
+        <div class="consent-box" id="codeBox" style="display:none; margin-top:12px;">
+          <label>確認コード(6桁)</label>
+          <input type="text" id="codeInput" placeholder="123456" oninput="updateNextBtn()">
+        </div>
+      </div>
+
+      <div class="onboard-step" id="obStep3">
+        <h2 id="obStep2Title">保護者の同意が必要です</h2>
+        <p class="sub" id="obStep2Sub">未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。</p>
+        <div class="consent-box" id="consentBox">
+          <label>保護者のメールアドレス</label>
+          <input type="email" placeholder="parent@example.com">
+        </div>
+        <div class="agree-row">
+          <input type="checkbox" id="agreeCheck" onchange="updateNextBtn()">
+          <span><a href="#">利用規約</a>に同意します(未成年の方は保護者の同意も含みます)</span>
+        </div>
+      </div>
+
+      <div class="onboard-step" id="obStep4">
+        <h2>興味のあるジャンルを選んでください</h2>
+        <p class="sub">後からいつでも変更できます</p>
+        <div class="onboard-genres">
+          <button class="g-chip" data-g="#プログラミング" onclick="toggleObGenre(this)">#プログラミング</button>
+          <button class="g-chip" data-g="#ロボット" onclick="toggleObGenre(this)">#ロボット</button>
+          <button class="g-chip" data-g="#AI" onclick="toggleObGenre(this)">#AI</button>
+          <button class="g-chip" data-g="#ものづくり" onclick="toggleObGenre(this)">#ものづくり</button>
+          <button class="g-chip" data-g="#起業" onclick="toggleObGenre(this)">#起業</button>
+          <button class="g-chip" data-g="#デザイン" onclick="toggleObGenre(this)">#デザイン</button>
+          <button class="g-chip" data-g="#宇宙" onclick="toggleObGenre(this)">#宇宙</button>
+          <button class="g-chip" data-g="#車・EV" onclick="toggleObGenre(this)">#車・EV</button>
+          <button class="g-chip" data-g="#マーケティング" onclick="toggleObGenre(this)">#マーケティング</button>
+          <button class="g-chip" data-g="#経営" onclick="toggleObGenre(this)">#経営</button>
+          <button class="g-chip" data-g="#株・投資" onclick="toggleObGenre(this)">#株・投資</button>
+          <button class="g-chip" data-g="#ビットコイン" onclick="toggleObGenre(this)">#ビットコイン</button>
+          <button class="g-chip" data-g="#政治" onclick="toggleObGenre(this)">#政治</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="onboard-bottom">
+      <button class="onboard-next" id="obNextBtn" onclick="onboardNext()" disabled>次へ</button>
+    </div>
+  </div>
+
+  <!-- お問い合わせ -->
+  <div class="contact-overlay" id="contactOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeContact()">✕</button>
+      <span class="cam-hint">お問い合わせ</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body">
+      <button class="contact-cat" onclick="selectContactCat(this,'dev')">
+        <div class="ic">🛠</div>
+        <div><div class="t">開発者へのお問い合わせ</div><div class="d">不具合報告・機能要望など</div></div>
+      </button>
+      <button class="contact-cat" onclick="selectContactCat(this,'biz')">
+        <div class="ic">🤝</div>
+        <div><div class="t">事業・提携のお問い合わせ</div><div class="d">企業協賛・提携・取材など</div></div>
+      </button>
+      <button class="contact-cat" onclick="selectContactCat(this,'safety')">
+        <div class="ic">🛡</div>
+        <div><div class="t">安全に関するご相談・通報</div><div class="d">危険を感じた場合はこちら(担当者が確認します)</div></div>
+      </button>
+
+      <div class="contact-form" id="contactForm">
+        <input type="text" id="contactName" placeholder="お名前(任意)">
+        <input type="email" id="contactEmail" placeholder="返信用メールアドレス">
+        <textarea id="contactMsg" placeholder="お問い合わせ内容をご記入ください"></textarea>
+        <button class="contact-send" onclick="sendContact()">送信する</button>
+      </div>
+    </div>
+  </div>
+ </div>
+</div>
+
+<script>
+  // device(枠)の実際の表示幅に合わせて、390px設計の中身を縮小する
+  var currentZoom = 1; // ドラッグ量の補正に使う(縮小表示でもスワイプ感度を合わせるため)
+  (function(){
+    var deviceEl = document.querySelector('.device');
+    var scaleEl = document.getElementById('deviceScale');
+    function applyScale(){
+      var w = deviceEl.clientWidth; // 枠線を除いた内側の幅
+      var s = w / 390;
+      scaleEl.style.zoom = s;
+      currentZoom = s;
+    }
+    applyScale();
+    window.addEventListener('resize', applyScale);
+    if(window.ResizeObserver){ new ResizeObserver(applyScale).observe(deviceEl); }
+  })();
+
+  var eligible = true; // demo toggle state: true = 相手が中学生以上(DM解禁), false = 小5-6年生(DM不可)
+
+  function switchView(name, btn){
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+    closeAllPops();
+    if(name === 'likes') renderLikes();
+    if(name === 'dm') renderDmList();
+  }
+
+  function togglePop(id){
+    var el = document.getElementById(id);
+    var wasOpen = el.classList.contains('open');
+    closeAllPops();
+    if(!wasOpen) el.classList.add('open');
+  }
+  function closeAllPops(){
+    document.querySelectorAll('.popover').forEach(function(p){ p.classList.remove('open'); });
+  }
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.popover') && !e.target.closest('.streak') && !e.target.closest('.dots-btn')){
+      closeAllPops();
+    }
+  });
+
+  // 1枚のカードだけをDOMに置き、内容をJSで差し替える方式(重なりバグを構造的に無くすため)
+  // 投稿はすべて24時間で消える設定という想定(ここではダミーで循環表示)
+  var posts = [
+    { id:'p1', name:'あやと', genre:'#プログラミング', avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:'#111820', b:'#0a0d12' },
+    { id:'p2', name:'みお',   genre:'#ロボット',      avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)', a:'#241226', b:'#120a16' },
+    { id:'p3', name:'はると', genre:'#AI',           avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)', a:'#132318', b:'#0a140d' },
+    { id:'p4', name:'ゆうな', genre:'#ものづくり',    avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)', a:'#0e2430', b:'#081218' },
+    { id:'p5', name:'そら',   genre:'#起業',          avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)', a:'#2a2210', b:'#161006' }
+  ];
+  var idx = 0;
+  var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定
+
+  function renderCard(){
+    var p = posts[idx % posts.length];
+    document.getElementById('cardPhoto').style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+    document.getElementById('cardAvatar').style.background = p.avatar;
+    document.getElementById('cardName').textContent = p.name;
+    document.getElementById('cardGenre').textContent = p.genre;
+    var btn = document.getElementById('followBtn');
+    btn.textContent = 'フォロー';
+    btn.classList.remove('following');
+    delete btn.dataset.acted;
+    btn.onclick = function(){ onFollow(btn); };
+    ['stampLike','stampPass','stampHold'].forEach(function(id){ document.getElementById(id).style.opacity = 0; });
+  }
+  renderCard();
+
+  function renderLikes(){
+    var grid = document.getElementById('likesGrid');
+    var empty = document.getElementById('likesEmpty');
+    grid.innerHTML = '';
+    if(likedPosts.length === 0){ empty.classList.add('show'); return; }
+    empty.classList.remove('show');
+    likedPosts.slice().reverse().forEach(function(p){
+      var d = document.createElement('div');
+      d.className = 'l-thumb';
+      d.style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+      d.innerHTML = '<span class="l-name">' + p.name + '</span>';
+      grid.appendChild(d);
+    });
+  }
+
+  // ---- DM(検索・一覧・チャット) ----
+  // つながっている(フォロー成立してDMが解禁された)相手の一覧。
+  // デモ用に最初から1人だけ既存の会話がある状態にしてある。
+  var connections = [
+    {
+      id:'p2', name:'みお', avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)',
+      messages:[
+        {from:'them', text:'ロボットの制御プログラム、Pythonでも大丈夫ですか?'},
+        {from:'me', text:'はい、大丈夫です!週末に少し話せますか?'}
+      ]
+    }
+  ];
+
+  function addConnection(post){
+    var exists = connections.some(function(c){ return c.id === post.id; });
+    if(!exists){
+      connections.push({ id:post.id, name:post.name, avatar:post.avatar, messages:[] });
+    }
+  }
+
+  function renderDmList(){
+    var list = document.getElementById('dmList');
+    var empty = document.getElementById('dmEmpty');
+    var q = (document.getElementById('dmSearch').value || '').trim();
+    list.innerHTML = '';
+    var filtered = connections.filter(function(c){ return c.name.indexOf(q) !== -1; });
+    if(connections.length === 0){ empty.classList.add('show'); return; }
+    empty.classList.remove('show');
+    filtered.forEach(function(c){
+      var row = document.createElement('div');
+      row.className = 'dm-row';
+      var last = c.messages.length ? c.messages[c.messages.length - 1].text : 'まだメッセージはありません';
+      row.innerHTML =
+        '<div class="avatar" style="background:' + c.avatar + '"></div>' +
+        '<div class="dm-meta"><div class="dm-name"></div><div class="dm-last"></div></div>';
+      row.querySelector('.dm-name').textContent = c.name;
+      row.querySelector('.dm-last').textContent = last;
+      row.addEventListener('click', function(){ openDM(c); });
+      list.appendChild(row);
+    });
+  }
+
+  var activeChatId = null;
+  function openDM(person){
+    addConnection(person);
+    var c = connections.filter(function(x){ return x.id === person.id; })[0];
+    activeChatId = c.id;
+    document.getElementById('chatAvatar').style.background = c.avatar;
+    document.getElementById('chatName').textContent = c.name;
+    renderMessages();
+    document.getElementById('dmChatOverlay').classList.add('open');
+  }
+  function closeDmChat(){
+    document.getElementById('dmChatOverlay').classList.remove('open');
+    activeChatId = null;
+    renderDmList();
+  }
+  function renderMessages(){
+    var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+    var box = document.getElementById('dmMessages');
+    box.innerHTML = '';
+    if(!c || c.messages.length === 0){
+      var hint = document.createElement('div');
+      hint.className = 'dm-note';
+      hint.style.textAlign = 'center';
+      hint.style.marginTop = '20px';
+      hint.textContent = 'まだメッセージがありません。挨拶してみましょう。';
+      box.appendChild(hint);
+      return;
+    }
+    c.messages.forEach(function(m){
+      var b = document.createElement('div');
+      b.className = 'dm-bubble ' + (m.from === 'me' ? 'me' : 'them');
+      b.textContent = m.text;
+      box.appendChild(b);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  function sendDm(){
+    var input = document.getElementById('dmInput');
+    var text = input.value.trim();
+    if(!text || !activeChatId) return;
+    var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+    c.messages.push({ from:'me', text:text });
+    input.value = '';
+    renderMessages();
+    // AIによる送信前チェックは実装時にここに挟む想定(危険な誘導・個人情報交換などを検知)
+  }
+
+  // ---- 登録(オンボーディング) ----
+  var obStep = 1;
+  var obAge = null;
+  var obGenres = [];
+
+  var phoneCodeSent = false;
+  function openOnboard(){
+    obStep = 1; obAge = null; obGenres = []; phoneCodeSent = false;
+    document.querySelectorAll('.age-option').forEach(function(b){ b.classList.remove('sel'); });
+    document.getElementById('agreeCheck').checked = false;
+    document.getElementById('phoneInput').value = '';
+    document.getElementById('codeInput').value = '';
+    document.getElementById('codeBox').style.display = 'none';
+    document.querySelectorAll('#obStep4 .g-chip').forEach(function(c){ c.classList.remove('sel'); });
+    showObStep(1);
+    document.getElementById('onboardOverlay').classList.add('open');
+  }
+  function closeOnboard(){
+    document.getElementById('onboardOverlay').classList.remove('open');
+  }
+  function mockSendCode(){
+    if(!document.getElementById('phoneInput').value.trim()) return;
+    phoneCodeSent = true;
+    document.getElementById('codeBox').style.display = 'block';
+  }
+
+  function showObStep(n){
+    obStep = n;
+    document.querySelectorAll('.onboard-step').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById('obStep' + n).classList.add('active');
+    ['obs1','obs2','obs3','obs4'].forEach(function(id, i){
+      document.getElementById(id).classList.toggle('done', i < n);
+    });
+    var btn = document.getElementById('obNextBtn');
+    if(n === 3){
+      var isAdult = obAge === 'adult';
+      document.getElementById('obStep2Title').textContent = isAdult ? '利用規約への同意' : '保護者の同意が必要です';
+      document.getElementById('obStep2Sub').textContent = isAdult
+        ? '利用規約に同意のうえ、ご利用を開始してください。'
+        : '未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。';
+      document.getElementById('consentBox').style.display = isAdult ? 'none' : 'block';
+    }
+    btn.textContent = n === 4 ? 'はじめる' : '次へ';
+    updateNextBtn();
+  }
+
+  function selectAge(btn){
+    document.querySelectorAll('.age-option').forEach(function(b){ b.classList.remove('sel'); });
+    btn.classList.add('sel');
+    obAge = btn.dataset.age;
+    updateNextBtn();
+  }
+
+  function toggleObGenre(chip){
+    chip.classList.toggle('sel');
+    var g = chip.dataset.g;
+    if(chip.classList.contains('sel')) obGenres.push(g);
+    else obGenres = obGenres.filter(function(x){ return x !== g; });
+  }
+
+  function updateNextBtn(){
+    var btn = document.getElementById('obNextBtn');
+    if(obStep === 1){ btn.disabled = !obAge; }
+    else if(obStep === 2){
+      var code = document.getElementById('codeInput').value.trim();
+      btn.disabled = !(phoneCodeSent && code.length === 6);
+    }
+    else if(obStep === 3){ btn.disabled = !document.getElementById('agreeCheck').checked; }
+    else { btn.disabled = false; }
+  }
+
+  function onboardNext(){
+    if(obStep < 4){ showObStep(obStep + 1); return; }
+    // 完了 → メインのフィードへ
+    closeOnboard();
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-feed').classList.add('active');
+    document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+  }
+
+  // ---- お問い合わせ ----
+  var contactCat = null;
+  function openContact(){
+    contactCat = null;
+    document.querySelectorAll('.contact-cat').forEach(function(c){ c.classList.remove('sel'); });
+    document.getElementById('contactForm').classList.remove('show');
+    document.getElementById('contactOverlay').classList.add('open');
+  }
+  function closeContact(){
+    document.getElementById('contactOverlay').classList.remove('open');
+  }
+  function selectContactCat(btn, cat){
+    contactCat = cat;
+    document.querySelectorAll('.contact-cat').forEach(function(c){ c.classList.remove('sel'); c.style.borderColor = '#ffffff1f'; });
+    btn.style.borderColor = 'var(--orange)';
+    document.getElementById('contactForm').classList.add('show');
+  }
+  function sendContact(){
+    var msg = document.getElementById('contactMsg').value.trim();
+    if(!contactCat || !msg) return;
+    alert('(プロトタイプ) 送信しました。担当チームが確認します。');
+    document.getElementById('contactName').value = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('contactMsg').value = '';
+    closeContact();
+  }
+
+  function toggleDemo(){
+    eligible = !eligible;
+    var el = document.getElementById('demoToggle');
+    var label = document.getElementById('demoLabel');
+    el.classList.toggle('on', !eligible);
+    label.textContent = eligible ? 'プレビュー相手: 中学生以上(DM解禁)' : 'プレビュー相手: 小学5・6年生(DM不可)';
+    renderCard();
+  }
+
+  function onFollow(btn){
+    bump(btn);
+    if(btn.dataset.acted) return;
+    btn.dataset.acted = '1';
+    if(eligible){
+      btn.textContent = 'DM';
+      btn.onclick = function(){ bump(btn); openDM(posts[idx % posts.length]); };
+      addConnection(posts[idx % posts.length]); // フォロー成立(DM解禁)した相手を接続リストに追加
+    } else {
+      btn.textContent = 'フォロー中';
+      btn.classList.add('following');
+      // DMボタンには絶対に変わらない(小5・6年生は仕様上DM機能自体を持たない)
+    }
+  }
+
+  function bump(el){
+    el.style.transform = 'scale(.88)';
+    setTimeout(function(){ el.style.transform = ''; }, 120);
+  }
+
+  // ドラッグ操作: 右=興味あり/左=興味なし/上=保留。指を離した時の方向で判定する
+  (function(){
+    var card = document.getElementById('card');
+    var stampLike = document.getElementById('stampLike');
+    var stampPass = document.getElementById('stampPass');
+    var stampHold = document.getElementById('stampHold');
+    var dragging = false, moved = false, startX = 0, startY = 0, dx = 0, dy = 0;
+    var THRESH = 90; // これ以上動かしたら判定成立とみなす(px、390設計基準)
+
+    card.addEventListener('pointerdown', function(e){
+      if(e.target.closest('.pill-btn') || e.target.closest('.icon-circle')) return;
+      dragging = true; moved = false;
+      startX = e.clientX; startY = e.clientY;
+      card.style.transition = 'none';
+      card.setPointerCapture(e.pointerId);
+    });
+
+    card.addEventListener('pointermove', function(e){
+      if(!dragging) return;
+      dx = (e.clientX - startX) / currentZoom; dy = (e.clientY - startY) / currentZoom;
+      if(Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + (dx / 18) + 'deg)';
+      var upness = -dy - Math.abs(dx) * 0.6; // 上方向がはっきり優勢な時だけ保留と判定
+      stampHold.style.opacity = Math.max(0, Math.min(1, upness / THRESH));
+      stampLike.style.opacity = dx > 0 ? Math.max(0, Math.min(1, (dx - Math.abs(dy)*0.6) / THRESH)) : 0;
+      stampPass.style.opacity = dx < 0 ? Math.max(0, Math.min(1, (-dx - Math.abs(dy)*0.6) / THRESH)) : 0;
+    });
+
+    function endDrag(e){
+      if(!dragging) return;
+      dragging = false;
+      card.style.transition = '';
+      var absX = Math.abs(dx), absY = Math.abs(dy);
+
+      if(-dy > THRESH && -dy > absX){
+        resolveSwipe('hold', 0, -1);
+      } else if(dx > THRESH && absX > absY){
+        resolveSwipe('like', 1, dy > 0 ? 0.3 : -0.3);
+      } else if(dx < -THRESH && absX > absY){
+        resolveSwipe('pass', -1, dy > 0 ? 0.3 : -0.3);
+      } else {
+        // 判定に届かなかった場合は真ん中へ戻す
+        card.style.transform = 'translate(0,0) rotate(0)';
+        ['stampLike','stampPass','stampHold'].forEach(function(id){ document.getElementById(id).style.opacity = 0; });
+      }
+      dx = 0; dy = 0;
+    }
+    card.addEventListener('pointerup', endDrag);
+    card.addEventListener('pointercancel', endDrag);
+
+    function resolveSwipe(kind, xDir, yDir){
+      var flyX = xDir * 480, flyY = yDir * 480 - (kind === 'hold' ? 260 : 0);
+      card.style.transform = 'translate(' + flyX + 'px,' + flyY + 'px) rotate(' + (xDir * 20) + 'deg)';
+      card.style.opacity = '0';
+      if(kind === 'like'){
+        likedPosts.push(posts[idx % posts.length]);
+      }
+      setTimeout(function(){
+        idx = (idx + 1) % posts.length;
+        renderCard();
+        card.style.transition = 'none';
+        card.style.transform = 'translate(0,0) rotate(0)'; card.style.opacity = '1';
+        requestAnimationFrame(function(){ card.style.transition = ''; });
+      }, 260);
+    }
+  })();
+
+  // ---- カメラ(撮影→ジャンル選択→投稿) ----
+  var selectedGenre = null;
+  var shotGradient = null;
+  var shotPalettes = [
+    ['#111820','#0a0d12'], ['#241226','#120a16'], ['#132318','#0a140d'],
+    ['#0e2430','#081218'], ['#2a2210','#161006']
+  ];
+
+  function openCamera(){
+    document.getElementById('cameraOverlay').classList.add('open');
+    document.getElementById('camStage').style.display = 'flex';
+    document.getElementById('previewStage').style.display = 'none';
+  }
+  function closeCamera(){
+    document.getElementById('cameraOverlay').classList.remove('open');
+  }
+
+  function takeShot(){
+    var flash = document.getElementById('camFlash');
+    flash.style.transition = 'none'; flash.style.opacity = '1';
+    requestAnimationFrame(function(){
+      flash.style.transition = 'opacity .35s ease';
+      flash.style.opacity = '0';
+    });
+    shotGradient = shotPalettes[Math.floor(Math.random() * shotPalettes.length)];
+    setTimeout(function(){
+      document.getElementById('previewPhoto').style.background =
+        'linear-gradient(160deg,' + shotGradient[0] + ',' + shotGradient[1] + ')';
+      document.getElementById('camStage').style.display = 'none';
+      document.getElementById('previewStage').style.display = 'flex';
+      selectedGenre = null;
+      document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+      document.getElementById('postBtn').classList.remove('ready');
+    }, 140);
+  }
+
+  function retake(){
+    document.getElementById('camStage').style.display = 'flex';
+    document.getElementById('previewStage').style.display = 'none';
+  }
+
+  document.querySelectorAll('.g-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+      chip.classList.add('sel');
+      selectedGenre = chip.dataset.g;
+      document.getElementById('postBtn').classList.add('ready');
+    });
+  });
+
+  function postShot(){
+    if(!selectedGenre) return; // ジャンル未選択では投稿できない
+    // 新しい投稿を先頭に追加し、次に表示されるカードにする(24時間表示という想定のダミー反映)
+    posts.unshift({
+      id:'mine-' + Date.now(), name:'あなた', genre:selectedGenre,
+      avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:shotGradient[0], b:shotGradient[1]
+    });
+    idx = 0;
+    renderCard();
+
+    var streakEl = document.getElementById('streakDays');
+    streakEl.textContent = (parseInt(streakEl.textContent, 10) || 0) + 1;
+
+    var toast = document.getElementById('postToast');
+    toast.classList.add('show');
+    setTimeout(function(){ toast.classList.remove('show'); }, 1800);
+
+    setTimeout(function(){
+      closeCamera();
+      // ホーム画面に戻す
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      document.getElementById('view-feed').classList.add('active');
+      document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+    }, 900);
+  }
+</script>
