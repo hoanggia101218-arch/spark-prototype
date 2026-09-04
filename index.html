@@ -323,6 +323,13 @@
     font-size:.76rem; color:#e6e2da; line-height:1.5;
   }
   .p-username{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:10px; }
+  .p-edit-btn{
+    margin-top:12px; background:#ffffff0d; border:1px solid #ffffff2a; color:#fff;
+    font-family:var(--display); font-weight:700; font-size:.76rem; padding:.55em 1.2em; border-radius:100px;
+  }
+  .avatar-pick{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .avatar-swatch{ width:44px; height:44px; border-radius:50%; border:2px solid transparent; flex:none; padding:0; }
+  .avatar-swatch.sel{ border-color:#fff; }
 
   .p-stats{ display:flex; gap:10px; margin-top:16px; }
   .p-stat{ flex:1; background:#ffffff0d; border-radius:12px; padding:10px; text-align:center; }
@@ -477,7 +484,7 @@
           <div class="swipe-stamp like" id="stampLike">興味あり</div>
           <div class="swipe-stamp pass" id="stampPass">興味なし</div>
           <div class="swipe-stamp hold" id="stampHold">保留</div>
-          <div class="postmeta">
+          <div class="postmeta" onclick="openOtherProfile(posts[idx % posts.length].id)" style="cursor:pointer;">
             <div class="avatar" id="cardAvatar"></div>
             <div class="name" id="cardName"></div>
           </div>
@@ -524,10 +531,10 @@
         <div class="p-bio">ロボット作るの好きです。一緒に作ってくれる人募集中!</div>
       </div>
       <div class="p-username">ユーザー名</div>
+      <button class="p-edit-btn" onclick="openEditProfile()">プロフィールを編集</button>
 
       <div class="p-stats">
         <div class="p-stat"><b id="pPoints">340</b><span>ポイント</span></div>
-        <div class="p-stat"><b>128</b><span>フォロワー</span></div>
         <div class="p-stat"><b>12</b><span>投稿</span></div>
       </div>
 
@@ -790,6 +797,38 @@
       </div>
     </div>
   </div>
+
+  <!-- プロフィール編集 -->
+  <div class="contact-overlay" id="editProfileOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeEditProfile()">✕</button>
+      <span class="cam-hint">プロフィールを編集</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body">
+      <div class="genre-pick-label" style="margin-top:6px;">アイコン</div>
+      <div class="avatar-pick" id="avatarPick"></div>
+      <input type="text" id="editUsername" placeholder="ユーザー名" style="margin-top:18px;">
+      <textarea id="editBio" placeholder="自己紹介(興味のあること・作っているものなど)" style="min-height:90px;"></textarea>
+      <button class="contact-send" onclick="saveProfile()">保存する</button>
+    </div>
+  </div>
+
+  <!-- 他ユーザーのプロフィール(閲覧のみ) -->
+  <div class="contact-overlay" id="otherProfileOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeOtherProfile()">✕</button>
+      <span class="cam-hint">プロフィール</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body" style="text-align:center; padding-top:24px;">
+      <div class="p-avatar" id="otherAvatar" style="width:88px; height:88px; margin:0 auto;"></div>
+      <div class="p-username" id="otherName" style="margin-top:14px;"></div>
+      <span class="mono-tag" id="otherGenre" style="margin-top:10px; display:inline-block;"></span>
+      <p style="font-size:.76rem; color:#9a9490; margin-top:16px; line-height:1.6;">興味が合いそうだと思ったら、フォローしてつながりましょう。</p>
+      <button class="pill-btn follow" id="otherFollowBtn" style="width:100%; margin-top:22px;"></button>
+    </div>
+  </div>
  </div>
 </div>
 
@@ -860,6 +899,48 @@
   var idx = 0;
   var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定
 
+  // フォロー状態は投稿者(post.id)ごとに永続させる。以前は毎回renderCard()で
+  // ボタン表示を強制的に「フォロー」へ戻していたため、一度フォローした相手でも
+  // カードを何枚か見て戻ってくるとフォロー状態が消えて見えるバグがあった。
+  var followState = {}; // postId -> 'following' | 'dm' (無ければ未フォロー)
+
+  function findPost(id){
+    for(var i = 0; i < posts.length; i++){ if(posts[i].id === id) return posts[i]; }
+    return null;
+  }
+
+  function applyFollowButtonState(btn, postId){
+    var state = followState[postId];
+    btn.classList.remove('following');
+    if(state === 'dm'){ btn.textContent = 'DM'; }
+    else if(state === 'following'){ btn.textContent = 'フォロー中'; btn.classList.add('following'); }
+    else { btn.textContent = 'フォロー'; }
+  }
+
+  function onFollow(postId, btn){
+    bump(btn);
+    var p = findPost(postId);
+    var state = followState[postId];
+    if(eligible){
+      if(state === 'dm'){ openDM(p); return; }
+      followState[postId] = 'dm';
+      addConnection(p); // フォロー成立(DM解禁)した相手を接続リストに追加
+    } else {
+      if(state === 'following'){ delete followState[postId]; } // フォロー解除(誤タップの取り消し)
+      else { followState[postId] = 'following'; }
+      // DMボタンには絶対に変わらない(小5・6年生は仕様上DM機能自体を持たない)
+    }
+    refreshFollowButtons();
+  }
+
+  function refreshFollowButtons(){
+    var cardPost = posts[idx % posts.length];
+    applyFollowButtonState(document.getElementById('followBtn'), cardPost.id);
+    if(currentOtherProfileId && document.getElementById('otherProfileOverlay').classList.contains('open')){
+      applyFollowButtonState(document.getElementById('otherFollowBtn'), currentOtherProfileId);
+    }
+  }
+
   function renderCard(){
     var p = posts[idx % posts.length];
     var photoEl = document.getElementById('cardPhoto');
@@ -870,13 +951,90 @@
     document.getElementById('cardName').textContent = p.name;
     document.getElementById('cardGenre').textContent = p.genre;
     var btn = document.getElementById('followBtn');
-    btn.textContent = 'フォロー';
-    btn.classList.remove('following');
-    delete btn.dataset.acted;
-    btn.onclick = function(){ onFollow(btn); };
+    btn.onclick = function(){ onFollow(p.id, btn); };
+    applyFollowButtonState(btn, p.id);
     ['stampLike','stampPass','stampHold'].forEach(function(id){ document.getElementById(id).style.opacity = 0; });
   }
   renderCard();
+
+  // ---- 他ユーザーのプロフィール(閲覧のみ) ----
+  var currentOtherProfileId = null;
+  function openOtherProfile(postId){
+    var p = findPost(postId);
+    if(!p) return;
+    currentOtherProfileId = postId;
+    document.getElementById('otherAvatar').style.background = p.avatar;
+    document.getElementById('otherName').textContent = p.name;
+    document.getElementById('otherGenre').textContent = p.genre;
+    var btn = document.getElementById('otherFollowBtn');
+    btn.onclick = function(){ onFollow(postId, btn); };
+    applyFollowButtonState(btn, postId);
+    document.getElementById('otherProfileOverlay').classList.add('open');
+  }
+  function closeOtherProfile(){
+    document.getElementById('otherProfileOverlay').classList.remove('open');
+    currentOtherProfileId = null;
+  }
+
+  // ---- 自分のプロフィール編集(ユーザー名・自己紹介・アイコン) ----
+  var myProfile = {
+    username: 'ユーザー名',
+    bio: 'ロボット作るの好きです。一緒に作ってくれる人募集中!',
+    avatar: 'linear-gradient(160deg,#ffd08a,#ff7a1a)'
+  };
+  var avatarPalette = [
+    'linear-gradient(160deg,#ffd08a,#ff7a1a)', 'linear-gradient(160deg,#c9a6ff,#7a3ff0)',
+    'linear-gradient(160deg,#9dffb0,#1fbf5c)', 'linear-gradient(160deg,#a6e6ff,#3f9ff0)',
+    'linear-gradient(160deg,#ffe08a,#f0a63f)', 'linear-gradient(160deg,#ff9ab0,#e0356b)'
+  ];
+  var pendingAvatar = null;
+
+  function renderMyProfile(){
+    var view = document.getElementById('view-profile');
+    view.querySelector('.p-username').textContent = myProfile.username;
+    view.querySelector('.p-bio').textContent = myProfile.bio;
+    view.querySelector('.p-avatar').style.background = myProfile.avatar;
+  }
+  renderMyProfile();
+
+  function renderAvatarPicker(){
+    var wrap = document.getElementById('avatarPick');
+    wrap.innerHTML = '';
+    avatarPalette.forEach(function(g){
+      var s = document.createElement('button');
+      s.type = 'button';
+      s.className = 'avatar-swatch' + (g === pendingAvatar ? ' sel' : '');
+      s.style.background = g;
+      s.onclick = function(){ pendingAvatar = g; renderAvatarPicker(); };
+      wrap.appendChild(s);
+    });
+  }
+
+  function openEditProfile(){
+    document.getElementById('editUsername').value = myProfile.username;
+    document.getElementById('editBio').value = myProfile.bio;
+    pendingAvatar = myProfile.avatar;
+    renderAvatarPicker();
+    document.getElementById('editProfileOverlay').classList.add('open');
+  }
+
+  function closeEditProfile(){
+    var changed = document.getElementById('editUsername').value.trim() !== myProfile.username
+      || document.getElementById('editBio').value.trim() !== myProfile.bio
+      || pendingAvatar !== myProfile.avatar;
+    if(changed && !confirm('編集した内容が消えますが、閉じますか?')) return;
+    document.getElementById('editProfileOverlay').classList.remove('open');
+  }
+
+  function saveProfile(){
+    var name = document.getElementById('editUsername').value.trim();
+    if(!name){ alert('ユーザー名を入力してください。'); return; }
+    myProfile.username = name;
+    myProfile.bio = document.getElementById('editBio').value.trim();
+    myProfile.avatar = pendingAvatar;
+    renderMyProfile();
+    document.getElementById('editProfileOverlay').classList.remove('open');
+  }
 
   function renderLikes(){
     var grid = document.getElementById('likesGrid');
@@ -1192,29 +1350,6 @@
     renderCard();
   }
 
-  function onFollow(btn){
-    bump(btn);
-    if(eligible){
-      if(btn.dataset.acted) return; // DMが解禁された後は、そのままメッセージボタンとして機能させる(フォロー解除ではなくなる)
-      btn.dataset.acted = '1';
-      btn.textContent = 'DM';
-      btn.onclick = function(){ bump(btn); openDM(posts[idx % posts.length]); };
-      addConnection(posts[idx % posts.length]); // フォロー成立(DM解禁)した相手を接続リストに追加
-    } else {
-      if(btn.dataset.acted){
-        // フォロー解除(誤タップの取り消しができるように)
-        delete btn.dataset.acted;
-        btn.textContent = 'フォロー';
-        btn.classList.remove('following');
-        return;
-      }
-      btn.dataset.acted = '1';
-      btn.textContent = 'フォロー中';
-      btn.classList.add('following');
-      // DMボタンには絶対に変わらない(小5・6年生は仕様上DM機能自体を持たない)
-    }
-  }
-
   function bump(el){
     el.style.transform = 'scale(.88)';
     setTimeout(function(){ el.style.transform = ''; }, 120);
@@ -1230,7 +1365,7 @@
     var THRESH = 90; // これ以上動かしたら判定成立とみなす(px、390設計基準)
 
     card.addEventListener('pointerdown', function(e){
-      if(e.target.closest('.pill-btn') || e.target.closest('.icon-circle')) return;
+      if(e.target.closest('.pill-btn') || e.target.closest('.icon-circle') || e.target.closest('.postmeta')) return;
       dragging = true; moved = false;
       startX = e.clientX; startY = e.clientY;
       card.style.transition = 'none';
