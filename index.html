@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141414">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23141414'/%3E%3Cpath d='M32 8 L37 27 L56 32 L37 37 L32 56 L27 37 L8 32 L27 27 Z' fill='%23ff7a1a'/%3E%3C/svg%3E">
 <title>Spark Feed Skeleton</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -810,6 +812,8 @@
     <div class="contact-body">
       <div class="genre-pick-label" style="margin-top:6px;">アイコン</div>
       <div class="avatar-pick" id="avatarPick"></div>
+      <button type="button" class="retake-link" style="margin-top:10px;" onclick="document.getElementById('avatarFileInput').click()">📷 好きな写真を選ぶ</button>
+      <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="onAvatarFileSelected(event)">
       <input type="text" id="editUsername" placeholder="ユーザー名" style="margin-top:18px;">
       <textarea id="editBio" placeholder="自己紹介(興味のあること・作っているものなど)" style="min-height:90px;"></textarea>
       <button class="contact-send" onclick="saveProfile()">保存する</button>
@@ -1002,14 +1006,44 @@
   function renderAvatarPicker(){
     var wrap = document.getElementById('avatarPick');
     wrap.innerHTML = '';
+    var isCustomPhoto = avatarPalette.indexOf(pendingAvatar) === -1;
+    if(isCustomPhoto){
+      // ファイルから選んだ自分の写真は、プリセットとは別に先頭に表示する
+      var custom = document.createElement('button');
+      custom.type = 'button';
+      custom.className = 'avatar-swatch sel';
+      custom.style.background = pendingAvatar;
+      wrap.appendChild(custom);
+    }
     avatarPalette.forEach(function(g){
       var s = document.createElement('button');
       s.type = 'button';
-      s.className = 'avatar-swatch' + (g === pendingAvatar ? ' sel' : '');
+      s.className = 'avatar-swatch' + (!isCustomPhoto && g === pendingAvatar ? ' sel' : '');
       s.style.background = g;
       s.onclick = function(){ pendingAvatar = g; renderAvatarPicker(); };
       wrap.appendChild(s);
     });
+  }
+
+  function onAvatarFileSelected(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = ''; // 同じファイルを選び直しても変更イベントが発火するようにリセット
+    if(!file) return;
+    if(!file.type || file.type.indexOf('image/') !== 0){
+      alert('画像ファイルを選んでください。');
+      return;
+    }
+    if(file.size > 8 * 1024 * 1024){
+      alert('画像が大きすぎます(8MB以下の画像を選んでください)。');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(){
+      pendingAvatar = 'url(' + reader.result + ') center/cover no-repeat';
+      renderAvatarPicker();
+    };
+    reader.onerror = function(){ alert('画像を読み込めませんでした。'); };
+    reader.readAsDataURL(file);
   }
 
   function openEditProfile(){
@@ -1050,7 +1084,12 @@
       d.style.background = p.photo
         ? 'url(' + p.photo + ') center/cover no-repeat'
         : 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
-      d.innerHTML = '<span class="l-name">' + p.name + '</span>';
+      // innerHTML+文字列結合はせず、textContentで安全に挿入する
+      // (p.nameは自分で編集できるユーザー名なので、HTMLとして解釈されるとXSSになりうる)
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'l-name';
+      nameSpan.textContent = p.name;
+      d.appendChild(nameSpan);
       grid.appendChild(d);
     });
   }
@@ -1096,11 +1135,23 @@
       var row = document.createElement('div');
       row.className = 'dm-row';
       var last = c.messages.length ? c.messages[c.messages.length - 1].text : 'まだメッセージはありません';
-      row.innerHTML =
-        '<div class="avatar" style="background:' + c.avatar + '"></div>' +
-        '<div class="dm-meta"><div class="dm-name"></div><div class="dm-last"></div></div>';
-      row.querySelector('.dm-name').textContent = c.name;
-      row.querySelector('.dm-last').textContent = last;
+      // innerHTML+文字列結合はせず、DOM APIとtextContentで安全に組み立てる
+      // (c.name/c.avatarは編集可能なユーザーデータなので、HTMLとして解釈されるとXSSになりうる)
+      var avatarDiv = document.createElement('div');
+      avatarDiv.className = 'avatar';
+      avatarDiv.style.background = c.avatar;
+      var metaDiv = document.createElement('div');
+      metaDiv.className = 'dm-meta';
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'dm-name';
+      nameDiv.textContent = c.name;
+      var lastDiv = document.createElement('div');
+      lastDiv.className = 'dm-last';
+      lastDiv.textContent = last;
+      metaDiv.appendChild(nameDiv);
+      metaDiv.appendChild(lastDiv);
+      row.appendChild(avatarDiv);
+      row.appendChild(metaDiv);
       row.addEventListener('click', function(){ openDM(c); });
       list.appendChild(row);
     });
@@ -1523,8 +1574,8 @@
     if(!selectedGenre || !capturedPhoto) return; // ジャンル未選択・未撮影では投稿できない
     // 新しい投稿を先頭に追加し、次に表示されるカードにする(24時間表示という想定のダミー反映)
     posts.unshift({
-      id:'mine-' + Date.now(), name:'あなた', genre:selectedGenre,
-      avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', photo:capturedPhoto
+      id:'mine-' + Date.now(), name:myProfile.username, genre:selectedGenre,
+      avatar:myProfile.avatar, photo:capturedPhoto
     });
     idx = 0;
     renderCard();
