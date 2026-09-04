@@ -921,7 +921,23 @@
 
   var eligible = true; // demo toggle state: true = 相手が中学生以上(DM解禁), false = 小5-6年生(DM不可)
 
+  // 登録時に選んだ自分の年齢層('elem'|'teen'|'adult')。以前は登録画面で選んでも
+  // 登録後どこにも使われておらず、小学5・6年生として登録してもDMタブが普通に
+  // 開けてしまう(仕様上あってはならない)バグがあった。localStorageにも保存し、
+  // 一度登録した端末を閉じて開き直しても制限が外れないようにする。
+  var myAgeTier = null;
+  try { myAgeTier = localStorage.getItem('spark_age_tier'); } catch(e){}
+
+  function applyAgeTierUI(){
+    var dmTab = document.getElementById('dmTab');
+    var isElem = myAgeTier === 'elem';
+    dmTab.style.display = isElem ? 'none' : '';
+    dmTab.disabled = isElem;
+  }
+  applyAgeTierUI();
+
   function switchView(name, btn){
+    if(name === 'dm' && myAgeTier === 'elem') return; // 小学5・6年生はDM機能自体を持たない
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-' + name).classList.add('active');
     document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
@@ -1019,7 +1035,10 @@
     bump(btn);
     var p = findPost(postId);
     var state = followState[postId];
-    if(eligible){
+    // 自分が小学5・6年生(myAgeTier==='elem')の場合、相手が誰であってもDMには絶対にならない。
+    // 以前はここが自分の年齢層を見ておらず、小学生として登録してもDMが解禁できてしまっていた。
+    var dmPossible = eligible && myAgeTier !== 'elem';
+    if(dmPossible){
       if(state === 'dm'){ openDM(p); return; }
       followState[postId] = 'dm';
       addConnection(p); // フォロー成立(DM解禁)した相手を接続リストに追加
@@ -1296,6 +1315,7 @@
 
   var activeChatId = null;
   function openDM(person){
+    if(myAgeTier === 'elem') return; // 小学5・6年生はDM機能自体を持たない(念のための二重ガード)
     addConnection(person);
     var c = connections.filter(function(x){ return x.id === person.id; })[0];
     activeChatId = c.id;
@@ -1450,7 +1470,12 @@
     myProfile.bio = document.getElementById('obBio').value.trim();
     myProfile.avatar = pendingAvatar;
     renderMyProfile();
-    try { localStorage.setItem('spark_onboarded', '1'); } catch(e){}
+    myAgeTier = obAge;
+    applyAgeTierUI();
+    try {
+      localStorage.setItem('spark_onboarded', '1');
+      localStorage.setItem('spark_age_tier', obAge || '');
+    } catch(e){}
     onboardMandatory = false;
     document.getElementById('onboardOverlay').classList.remove('open');
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
