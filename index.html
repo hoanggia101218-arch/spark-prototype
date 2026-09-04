@@ -238,10 +238,11 @@
     margin-top:16px; background:#ffffff0d; border:1px solid #ffffff1f; border-radius:16px; padding:16px;
   }
   .consent-box label{ font-size:.72rem; color:#9a9490; display:block; margin-bottom:6px; }
-  .consent-box input[type=email]{
+  .consent-box input{
     width:100%; background:#00000030; border:1px solid #ffffff22; border-radius:10px; padding:.7em .9em;
     color:#fff; font-size:.82rem; font-family:var(--body);
   }
+  .consent-box input::placeholder{ color:#7a736c; }
   .agree-row{ display:flex; align-items:flex-start; gap:10px; margin-top:16px; font-size:.76rem; color:#c9c4bd; line-height:1.6; }
   .agree-row a{ color:var(--orange); }
   .onboard-genres{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
@@ -699,7 +700,7 @@
         <p class="sub" id="obStep2Sub">未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。</p>
         <div class="consent-box" id="consentBox">
           <label>保護者のメールアドレス</label>
-          <input type="email" placeholder="parent@example.com">
+          <input type="email" id="parentEmailInput" placeholder="parent@example.com" oninput="updateNextBtn()">
         </div>
         <div class="agree-row">
           <input type="checkbox" id="agreeCheck" onchange="updateNextBtn()">
@@ -975,6 +976,7 @@
     document.getElementById('agreeCheck').checked = false;
     document.getElementById('phoneInput').value = '';
     document.getElementById('codeInput').value = '';
+    document.getElementById('parentEmailInput').value = '';
     document.getElementById('codeBox').style.display = 'none';
     document.querySelectorAll('#obStep4 .g-chip').forEach(function(c){ c.classList.remove('sel'); });
     showObStep(1);
@@ -1037,14 +1039,18 @@
       var code = document.getElementById('codeInput').value.trim();
       btn.disabled = !(phoneCodeSent && /^[0-9]{6}$/.test(code));
     }
-    else if(obStep === 3){ btn.disabled = !document.getElementById('agreeCheck').checked; }
+    else if(obStep === 3){
+      var isAdult = obAge === 'adult';
+      var emailOk = isAdult || /\S+@\S+\.\S+/.test(document.getElementById('parentEmailInput').value.trim());
+      btn.disabled = !(document.getElementById('agreeCheck').checked && emailOk);
+    }
     else { btn.disabled = false; }
   }
 
   function onboardNext(){
     if(obStep < 4){ showObStep(obStep + 1); return; }
-    // 完了 → メインのフィードへ
-    closeOnboard();
+    // 完了 → メインのフィードへ(登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+    document.getElementById('onboardOverlay').classList.remove('open');
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-feed').classList.add('active');
     document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
