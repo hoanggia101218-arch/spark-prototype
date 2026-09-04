@@ -363,6 +363,9 @@
     flex:1; min-height:0; margin-top:14px; border-radius:24px; overflow:hidden; position:relative;
     background:radial-gradient(120% 90% at 30% 20%,#2a2f3a,#0a0c10 70%);
   }
+  .viewfinder video{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  }
   .vf-grid{
     position:absolute; inset:0;
     background-image:
@@ -370,6 +373,12 @@
       linear-gradient(to bottom, #ffffff14 1px, transparent 1px);
     background-size:33.33% 33.33%;
   }
+  .cam-error{
+    display:none; position:absolute; inset:12px auto auto 12px; right:12px; z-index:5;
+    background:#1c1c1cf0; border:1px solid #ff5a5a55; border-radius:14px; padding:12px 14px;
+    font-size:.74rem; color:#ffb3b3; line-height:1.6;
+  }
+  .cam-error.show{ display:block; }
   .cam-bottom{ display:flex; justify-content:center; align-items:center; padding-top:20px; }
   .shutter{
     width:72px; height:72px; aspect-ratio:1; border-radius:50%; background:none; border:4px solid #fff;
@@ -562,8 +571,11 @@
         <span style="width:34px;"></span>
       </div>
       <div class="viewfinder" id="viewfinder">
+        <video id="camVideo" autoplay playsinline muted></video>
         <div class="vf-grid"></div>
+        <div class="cam-error" id="camError"></div>
       </div>
+      <canvas id="camCanvas" style="display:none;"></canvas>
       <div class="cam-bottom">
         <button class="shutter" onclick="takeShot()"><span></span></button>
       </div>
@@ -850,7 +862,10 @@
 
   function renderCard(){
     var p = posts[idx % posts.length];
-    document.getElementById('cardPhoto').style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+    var photoEl = document.getElementById('cardPhoto');
+    photoEl.style.background = p.photo
+      ? 'url(' + p.photo + ') center/cover no-repeat'
+      : 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
     document.getElementById('cardAvatar').style.background = p.avatar;
     document.getElementById('cardName').textContent = p.name;
     document.getElementById('cardGenre').textContent = p.genre;
@@ -872,7 +887,9 @@
     likedPosts.slice().reverse().forEach(function(p){
       var d = document.createElement('div');
       d.className = 'l-thumb';
-      d.style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+      d.style.background = p.photo
+        ? 'url(' + p.photo + ') center/cover no-repeat'
+        : 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
       d.innerHTML = '<span class="l-name">' + p.name + '</span>';
       grid.appendChild(d);
     });
@@ -1273,33 +1290,74 @@
   })();
 
   // ---- カメラ(撮影→ジャンル選択→投稿) ----
+  // 実機のカメラをgetUserMediaで起動し、シャッターを押した瞬間の映像をcanvasに焼き付けて
+  // 1枚の静止画(dataURL)にする。「加工なし・その場の1枚だけ」という仕様上、
+  // フィルター等は一切かけない。ダミーの色グラデーションは、最初から入っているサンプル
+  // 投稿(posts配列)の見た目としてのみ引き続き使う。
   var selectedGenre = null;
-  var shotGradient = null;
-  var shotPalettes = [
-    ['#111820','#0a0d12'], ['#241226','#120a16'], ['#132318','#0a140d'],
-    ['#0e2430','#081218'], ['#2a2210','#161006']
-  ];
+  var camStream = null;
+  var capturedPhoto = null; // 撮影した写真のdataURL
 
   function openCamera(){
     document.getElementById('cameraOverlay').classList.add('open');
     document.getElementById('camStage').style.display = 'flex';
     document.getElementById('previewStage').style.display = 'none';
+    startCameraStream();
   }
   function closeCamera(){
     document.getElementById('cameraOverlay').classList.remove('open');
+    stopCameraStream();
+  }
+
+  function startCameraStream(){
+    var video = document.getElementById('camVideo');
+    var errBox = document.getElementById('camError');
+    errBox.classList.remove('show');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      errBox.textContent = 'このブラウザではカメラを使用できません。';
+      errBox.classList.add('show');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(function(stream){
+        camStream = stream;
+        video.srcObject = stream;
+      })
+      .catch(function(err){
+        errBox.textContent = 'カメラを起動できませんでした。ブラウザの設定でこのサイトのカメラへのアクセスを許可してください。(' + (err && err.name ? err.name : 'エラー') + ')';
+        errBox.classList.add('show');
+      });
+  }
+
+  function stopCameraStream(){
+    if(camStream){
+      camStream.getTracks().forEach(function(t){ t.stop(); });
+      camStream = null;
+    }
   }
 
   function takeShot(){
+    var video = document.getElementById('camVideo');
+    if(!video.videoWidth){
+      return; // まだカメラ映像が来ていない(許可待ち・エラー中など)
+    }
     var flash = document.getElementById('camFlash');
     flash.style.transition = 'none'; flash.style.opacity = '1';
     requestAnimationFrame(function(){
       flash.style.transition = 'opacity .35s ease';
       flash.style.opacity = '0';
     });
-    shotGradient = shotPalettes[Math.floor(Math.random() * shotPalettes.length)];
+
+    var canvas = document.getElementById('camCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    capturedPhoto = canvas.toDataURL('image/jpeg', 0.85);
+    stopCameraStream(); // プレビュー中はカメラを止めておく(電池・プライバシー配慮)
+
     setTimeout(function(){
-      document.getElementById('previewPhoto').style.background =
-        'linear-gradient(160deg,' + shotGradient[0] + ',' + shotGradient[1] + ')';
+      var preview = document.getElementById('previewPhoto');
+      preview.style.background = 'url(' + capturedPhoto + ') center/cover no-repeat';
       document.getElementById('camStage').style.display = 'none';
       document.getElementById('previewStage').style.display = 'flex';
       selectedGenre = null;
@@ -1309,8 +1367,10 @@
   }
 
   function retake(){
+    capturedPhoto = null;
     document.getElementById('camStage').style.display = 'flex';
     document.getElementById('previewStage').style.display = 'none';
+    startCameraStream(); // 撮り直すのでカメラを再度起動
   }
 
   document.querySelectorAll('.g-chip').forEach(function(chip){
@@ -1323,11 +1383,11 @@
   });
 
   function postShot(){
-    if(!selectedGenre) return; // ジャンル未選択では投稿できない
+    if(!selectedGenre || !capturedPhoto) return; // ジャンル未選択・未撮影では投稿できない
     // 新しい投稿を先頭に追加し、次に表示されるカードにする(24時間表示という想定のダミー反映)
     posts.unshift({
       id:'mine-' + Date.now(), name:'あなた', genre:selectedGenre,
-      avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:shotGradient[0], b:shotGradient[1]
+      avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', photo:capturedPhoto
     });
     idx = 0;
     renderCard();
