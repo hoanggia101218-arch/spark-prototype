@@ -468,7 +468,7 @@
           </div>
         </div>
         <div class="card-actions">
-          <button class="icon-circle" onclick="bump(this)" title="コメント">
+          <button class="icon-circle" onclick="bump(this); openComments();" title="コメント">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H7l-3 3z"/></svg>
           </button>
           <button class="pill-btn follow" id="followBtn" onclick="onFollow(this)">フォロー</button>
@@ -501,7 +501,7 @@
       <div class="popover" id="morePop" style="top:44px;">
         <div class="row"><span>フォロワー</span><span>128人</span></div>
         <div class="row"><span>利用開始</span><span>2026年3月</span></div>
-        <div class="row"><span style="color:#ff8a70;">通報する</span><span>›</span></div>
+        <div class="row" onclick="reportFromProfile()" style="cursor:pointer;"><span style="color:#ff8a70;">通報する</span><span>›</span></div>
       </div>
 
       <div class="p-main">
@@ -624,6 +624,39 @@
     </div>
   </div>
 
+  <!-- コメント画面(モーダル) -->
+  <div class="dm-chat-overlay" id="commentOverlay">
+    <div class="dm-chat-top">
+      <button class="cam-x" onclick="closeComments()">‹</button>
+      <div class="dm-chat-name">コメント</div>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="dm-messages" id="commentList"></div>
+    <div class="dm-input-row">
+      <input class="dm-input" id="commentInput" placeholder="コメントを入力" onkeydown="if(event.key==='Enter') sendComment();">
+      <button class="dm-send" onclick="sendComment()">→</button>
+    </div>
+  </div>
+
+  <!-- 利用規約(要約) -->
+  <div class="contact-overlay" id="termsOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeTerms()">✕</button>
+      <span class="cam-hint">利用規約(要約)</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body" style="font-size:.78rem; color:#c9c4bd; line-height:1.9;">
+      <p style="margin-top:12px;">・小学5・6年生は、投稿の閲覧・投稿・コメントのみ利用できます。DM機能は使えません。</p>
+      <p style="margin-top:10px;">・中学生〜17歳は、DM・プロジェクトマッチングも利用できます。マッチング相手は同世代の未成年者に限られます。</p>
+      <p style="margin-top:10px;">・未成年の方が利用する場合、保護者の同意が必要です。</p>
+      <p style="margin-top:10px;">・未成年ユーザーと成人ユーザーは、一般のDM・マッチング機能上で接触することはありません。</p>
+      <p style="margin-top:10px;">・投稿は撮影したその場の1枚のみで、加工はできません。投稿から24時間で自動的に非表示になります。</p>
+      <p style="margin-top:10px;">・投稿・DMはAIによる安全チェックを経ます(完全ではありません)。</p>
+      <p style="margin-top:10px;">・年齢・氏名を偽っての登録、他者への危険な接触・勧誘、安全機構の回避は禁止です。</p>
+      <p style="margin-top:16px; color:#7a736c; font-size:.7rem;">これはプロトタイプ確認用の要約です。正式版では、弁護士確認済みの全文をここに表示します。</p>
+    </div>
+  </div>
+
   <!-- 新規登録(オンボーディング) -->
   <div class="onboard-overlay" id="onboardOverlay">
     <div class="onboard-top">
@@ -670,7 +703,7 @@
         </div>
         <div class="agree-row">
           <input type="checkbox" id="agreeCheck" onchange="updateNextBtn()">
-          <span><a href="#">利用規約</a>に同意します(未成年の方は保護者の同意も含みます)</span>
+          <span><a href="#" onclick="event.preventDefault(); openTerms();">利用規約</a>に同意します(未成年の方は保護者の同意も含みます)</span>
         </div>
       </div>
 
@@ -948,10 +981,17 @@
     document.getElementById('onboardOverlay').classList.add('open');
   }
   function closeOnboard(){
+    var hasInput = obAge || document.getElementById('phoneInput').value.trim() || document.getElementById('codeInput').value.trim();
+    if(hasInput && !confirm('入力した内容が消えますが、閉じますか?')) return;
     document.getElementById('onboardOverlay').classList.remove('open');
   }
   function mockSendCode(){
-    if(!document.getElementById('phoneInput').value.trim()) return;
+    var raw = document.getElementById('phoneInput').value.trim();
+    var digits = raw.replace(/[^0-9]/g, '');
+    if(digits.length < 10 || digits.length > 11){
+      alert('正しい電話番号を入力してください(ハイフンありなしどちらでも可、10〜11桁)');
+      return;
+    }
     phoneCodeSent = true;
     document.getElementById('codeBox').style.display = 'block';
   }
@@ -995,7 +1035,7 @@
     if(obStep === 1){ btn.disabled = !obAge; }
     else if(obStep === 2){
       var code = document.getElementById('codeInput').value.trim();
-      btn.disabled = !(phoneCodeSent && code.length === 6);
+      btn.disabled = !(phoneCodeSent && /^[0-9]{6}$/.test(code));
     }
     else if(obStep === 3){ btn.disabled = !document.getElementById('agreeCheck').checked; }
     else { btn.disabled = false; }
@@ -1020,7 +1060,68 @@
     document.getElementById('contactOverlay').classList.add('open');
   }
   function closeContact(){
+    var hasInput = document.getElementById('contactMsg').value.trim() || document.getElementById('contactEmail').value.trim() || document.getElementById('contactName').value.trim();
+    if(hasInput && !confirm('入力した内容が消えますが、閉じますか?')) return;
     document.getElementById('contactOverlay').classList.remove('open');
+  }
+
+  function openTerms(){
+    document.getElementById('termsOverlay').classList.add('open');
+  }
+  function closeTerms(){
+    document.getElementById('termsOverlay').classList.remove('open');
+  }
+
+  function reportFromProfile(){
+    closeAllPops();
+    openContact();
+    var safetyBtn = document.querySelector('.contact-cat[onclick*="safety"]');
+    if(safetyBtn) selectContactCat(safetyBtn, 'safety');
+  }
+
+  // ---- コメント ----
+  var commentsByPost = {};
+  function openComments(){
+    var p = posts[idx % posts.length];
+    if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
+    renderComments();
+    document.getElementById('commentOverlay').classList.add('open');
+  }
+  function closeComments(){
+    document.getElementById('commentOverlay').classList.remove('open');
+  }
+  function renderComments(){
+    var p = posts[idx % posts.length];
+    var list = commentsByPost[p.id] || [];
+    var box = document.getElementById('commentList');
+    box.innerHTML = '';
+    if(list.length === 0){
+      var hint = document.createElement('div');
+      hint.className = 'dm-note';
+      hint.style.textAlign = 'center';
+      hint.style.marginTop = '20px';
+      hint.textContent = 'まだコメントがありません。最初のコメントをどうぞ。';
+      box.appendChild(hint);
+      return;
+    }
+    list.forEach(function(c){
+      var b = document.createElement('div');
+      b.className = 'dm-bubble them';
+      b.textContent = c.text;
+      box.appendChild(b);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  function sendComment(){
+    var input = document.getElementById('commentInput');
+    var text = input.value.trim();
+    if(!text) return;
+    var p = posts[idx % posts.length];
+    if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
+    commentsByPost[p.id].push({ text:text });
+    input.value = '';
+    renderComments();
+    // AIによる送信前チェックは実装時にここに挟む想定
   }
   function selectContactCat(btn, cat){
     contactCat = cat;
@@ -1053,13 +1154,21 @@
 
   function onFollow(btn){
     bump(btn);
-    if(btn.dataset.acted) return;
-    btn.dataset.acted = '1';
     if(eligible){
+      if(btn.dataset.acted) return; // DMが解禁された後は、そのままメッセージボタンとして機能させる(フォロー解除ではなくなる)
+      btn.dataset.acted = '1';
       btn.textContent = 'DM';
       btn.onclick = function(){ bump(btn); openDM(posts[idx % posts.length]); };
       addConnection(posts[idx % posts.length]); // フォロー成立(DM解禁)した相手を接続リストに追加
     } else {
+      if(btn.dataset.acted){
+        // フォロー解除(誤タップの取り消しができるように)
+        delete btn.dataset.acted;
+        btn.textContent = 'フォロー';
+        btn.classList.remove('following');
+        return;
+      }
+      btn.dataset.acted = '1';
       btn.textContent = 'フォロー中';
       btn.classList.add('following');
       // DMボタンには絶対に変わらない(小5・6年生は仕様上DM機能自体を持たない)
