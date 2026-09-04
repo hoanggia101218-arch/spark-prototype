@@ -51,25 +51,30 @@
     padding:.6em 1.1em; border-radius:100px;
   }
   .demo-btn:active{ background:#2a2a2a; }
-  .dev-panel{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+  /* 検証用パネル(年齢帯プレビュー切替・登録/お問い合わせ画面への直行ボタン)は、
+     本来サーバー側(実際の年齢確認)が決めるべきことをその場で切り替えられてしまう
+     ため、一般ユーザーには絶対に見せてはいけない。既定では非表示にし、
+     URLに ?dev=1 を付けた開発者だけが body.dev-mode 経由で見られるようにする。 */
+  .dev-panel{ display:none; flex-direction:column; align-items:center; gap:16px; }
   .dev-fab{ display:none; }
+  body.dev-mode .dev-panel{ display:flex; }
 
-  /* 実機(狭い画面)では、検証用パネルは邪魔にならない小さな歯車ボタンの裏に隠し、
+  /* 実機(狭い画面)の開発者モードでは、検証用パネルは邪魔にならない小さな歯車ボタンの裏に隠し、
      本体は画面いっぱいに使う「本物のアプリ」に近い見た目にする */
   @media (max-width:480px){
     body{ padding:0; gap:0; }
-    .dev-fab{
+    body.dev-mode .dev-fab{
       display:flex; align-items:center; justify-content:center;
       position:fixed; top:14px; right:14px; z-index:200;
       width:34px; height:34px; border-radius:50%; background:#1c1c1cdd; border:1px solid #444;
       color:#ccc; font-size:1rem;
     }
-    .dev-panel{
+    body.dev-mode .dev-panel{
       display:none; position:fixed; top:56px; right:14px; z-index:200; width:min(240px,calc(100vw - 28px));
       background:#1c1c1cf5; border:1px solid #333; border-radius:16px; padding:14px; gap:10px;
       box-shadow:0 20px 40px -12px #000a; align-items:stretch;
     }
-    .dev-panel.open{ display:flex; }
+    body.dev-mode .dev-panel.open{ display:flex; }
     .demo-btn-row{ flex-direction:column; }
     .device{
       aspect-ratio:auto; width:100vw; height:100dvh; max-width:none;
@@ -777,6 +782,13 @@
 </div>
 
 <script>
+  // 検証用パネルは、URLに ?dev=1 を付けた開発者だけに見せる。
+  // 一般ユーザーが本来サーバー側の年齢確認で決まるはずの状態を自分で切り替えられて
+  // しまうのを防ぐため、既定では絶対に表示しない(CSS側もbody.dev-mode前提にしてある)。
+  if(/(^|[?&])dev=1(&|$)/.test(location.search)){
+    document.body.classList.add('dev-mode');
+  }
+
   // device(枠)の実際の表示幅に合わせて、390px設計の中身を縮小する
   var currentZoom = 1; // ドラッグ量の補正に使う(縮小表示でもスワイプ感度を合わせるため)
   (function(){
