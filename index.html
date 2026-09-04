@@ -1148,8 +1148,13 @@
     document.getElementById('contactForm').classList.add('show');
   }
   function sendContact(){
+    var email = document.getElementById('contactEmail').value.trim();
     var msg = document.getElementById('contactMsg').value.trim();
     if(!contactCat || !msg) return;
+    if(!/\S+@\S+\.\S+/.test(email)){
+      alert('返信用メールアドレスを正しく入力してください。返信先がないと、お問い合わせにお答えできません。');
+      return;
+    }
     alert('(プロトタイプ) 送信しました。担当チームが確認します。');
     document.getElementById('contactName').value = '';
     document.getElementById('contactEmail').value = '';
