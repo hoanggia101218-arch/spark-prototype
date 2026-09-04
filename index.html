@@ -274,14 +274,16 @@
   .contact-cat .d{ font-size:.7rem; color:#9a9490; margin-top:3px; line-height:1.5; }
   .contact-form{ display:none; margin-top:16px; }
   .contact-form.show{ display:block; }
-  .contact-form textarea{
+  .contact-form textarea, .contact-body textarea{
     width:100%; min-height:120px; background:#ffffff0d; border:1px solid #ffffff22; border-radius:14px;
     padding:12px; color:#fff; font-size:.82rem; font-family:var(--body); resize:none; margin-top:10px;
   }
-  .contact-form input{
+  .contact-form input, .contact-body input[type=text]{
     width:100%; background:#ffffff0d; border:1px solid #ffffff22; border-radius:12px;
     padding:.8em 1em; color:#fff; font-size:.82rem; font-family:var(--body); margin-top:10px;
   }
+  .contact-form textarea::placeholder, .contact-body textarea::placeholder,
+  .contact-form input::placeholder, .contact-body input::placeholder{ color:#7a736c; }
   .contact-send{
     width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
     font-size:.9rem; padding:.85em; border-radius:100px; margin-top:14px;
