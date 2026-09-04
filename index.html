@@ -1210,7 +1210,11 @@
   var obGenres = [];
 
   var phoneCodeSent = false;
-  function openOnboard(){
+  // mandatory=true: 初回訪問の必須登録として開く(✕で閉じられない)。
+  // mandatory=false/省略: 開発者パネルからのプレビュー表示(自由に閉じられる)。
+  var onboardMandatory = false;
+  function openOnboard(mandatory){
+    onboardMandatory = !!mandatory;
     obStep = 1; obAge = null; obGenres = []; phoneCodeSent = false;
     document.querySelectorAll('.age-option').forEach(function(b){ b.classList.remove('sel'); });
     document.getElementById('agreeCheck').checked = false;
@@ -1223,6 +1227,10 @@
     document.getElementById('onboardOverlay').classList.add('open');
   }
   function closeOnboard(){
+    if(onboardMandatory){
+      alert('ご利用には年齢確認などの登録が必要です。');
+      return;
+    }
     var hasInput = obAge || document.getElementById('phoneInput').value.trim() || document.getElementById('codeInput').value.trim();
     if(hasInput && !confirm('入力した内容が消えますが、閉じますか?')) return;
     document.getElementById('onboardOverlay').classList.remove('open');
@@ -1290,6 +1298,8 @@
   function onboardNext(){
     if(obStep < 4){ showObStep(obStep + 1); return; }
     // 完了 → メインのフィードへ(登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+    try { localStorage.setItem('spark_onboarded', '1'); } catch(e){}
+    onboardMandatory = false;
     document.getElementById('onboardOverlay').classList.remove('open');
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('view-feed').classList.add('active');
@@ -1596,6 +1606,22 @@
       document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
     }, 900);
   }
+
+  // ---- 初回訪問ゲート ----
+  // 登録画面は元々「開発者パネルからのプレビュー用」としてのみ実装されており、
+  // 実際の訪問者が入る導線には一切繋がっていなかった(年齢確認・保護者同意という
+  // 安全設計の入り口そのものが機能していない状態)。一般公開する前提になったため、
+  // localStorageで「登録済みか」を覚え、未登録の初回訪問(開発者モードを除く)では
+  // 必ず登録を通すようにする。バックエンド未接続の現段階ではあくまで
+  // フロントエンド側の仮のゲートであり、実際の年齢確認の強制力はDellさんの
+  // バックエンド接続(RLS)が入って初めて完成する。
+  (function(){
+    var alreadyOnboarded = false;
+    try { alreadyOnboarded = localStorage.getItem('spark_onboarded') === '1'; } catch(e){}
+    if(!alreadyOnboarded && !document.body.classList.contains('dev-mode')){
+      openOnboard(true);
+    }
+  })();
 </script>
 </body>
 </html>
