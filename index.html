@@ -163,6 +163,28 @@
   .swipe-hint{
     text-align:center; font-family:var(--mono); font-size:.62rem; color:#8a827a; padding:8px 0 4px; letter-spacing:.02em;
   }
+  .cap-text{
+    position:absolute; left:12px; right:12px; bottom:56px; z-index:2;
+    color:#fff; font-family:var(--display); font-weight:700; font-size:.9rem; line-height:1.6;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+    text-shadow:0 1px 6px #000a; display:none;
+  }
+  .cap-text.show{ display:-webkit-box; }
+  .photo.text-only{
+    display:flex; align-items:center; justify-content:center; padding:28px;
+    background:linear-gradient(160deg,#241a10,#141414) !important;
+  }
+  .photo.text-only .cap-text{
+    position:static; -webkit-line-clamp:none; font-size:1.15rem; text-align:center; text-shadow:none;
+  }
+  .feed-empty{
+    display:none; position:absolute; inset:0; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px 28px; color:#9a9490;
+  }
+  .feed-empty.show{ display:flex; }
+  .feed-empty-icon{ font-size:2rem; }
+  .feed-empty-title{ font-family:var(--display); font-weight:700; font-size:1rem; color:#fff; margin-top:10px; }
+  .feed-empty p{ font-size:.78rem; margin-top:8px; line-height:1.7; }
 
   .view-title{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:14px; }
   .view-sub{ font-size:.74rem; color:#9a9490; margin-top:4px; line-height:1.6; }
@@ -286,6 +308,19 @@
   }
   .contact-form textarea::placeholder, .contact-body textarea::placeholder,
   .contact-form input::placeholder, .contact-body input::placeholder{ color:#7a736c; }
+  /* どの画面に置いても確実にテーマに合った見た目になる、汎用の入力欄クラス。
+     祖先要素のクラスに依存するとスタイル漏れが繰り返し起きたため、新規追加する
+     入力欄はこちらを使う。 */
+  .themed-field{
+    width:100%; background:#ffffff0d; border:1px solid #ffffff22; border-radius:12px;
+    padding:.8em 1em; color:#fff; font-size:.82rem; font-family:var(--body); margin-top:10px;
+  }
+  textarea.themed-field{ border-radius:14px; padding:12px; resize:none; }
+  .themed-field::placeholder{ color:#7a736c; }
+  .no-photo-hint{
+    display:none; color:#8a827a; font-family:var(--mono); font-size:.72rem; text-align:center; padding:20px;
+  }
+  .viewfinder.no-photo-active .no-photo-hint{ display:block; }
   .contact-send{
     width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
     font-size:.9rem; padding:.85em; border-radius:100px; margin-top:14px;
@@ -485,10 +520,11 @@
       <div class="postcard" id="card">
         <div class="photo" id="cardPhoto">
           <div class="genre-chip" id="cardGenre"></div>
+          <div class="cap-text" id="cardCaption"></div>
           <div class="swipe-stamp like" id="stampLike">興味あり</div>
           <div class="swipe-stamp pass" id="stampPass">興味なし</div>
           <div class="swipe-stamp hold" id="stampHold">保留</div>
-          <div class="postmeta" onclick="openOtherProfile(posts[idx % posts.length].id)" style="cursor:pointer;">
+          <div class="postmeta" onclick="openOtherProfile(feedQueue[0])" style="cursor:pointer;">
             <div class="avatar" id="cardAvatar"></div>
             <div class="name" id="cardName"></div>
           </div>
@@ -499,6 +535,11 @@
           </button>
           <button class="pill-btn follow" id="followBtn" onclick="onFollow(this)">フォロー</button>
         </div>
+      </div>
+      <div class="feed-empty" id="feedEmpty">
+        <div class="feed-empty-icon">✨</div>
+        <div class="feed-empty-title">まだ投稿がありません</div>
+        <p>最初の投稿をしてみませんか?下の＋ボタンから投稿できます。</p>
       </div>
     </div>
     <p class="swipe-hint">← 興味なし&nbsp;&nbsp;/&nbsp;&nbsp;↑ 保留&nbsp;&nbsp;/&nbsp;&nbsp;興味あり →</p>
@@ -587,8 +628,9 @@
         <div class="cam-error" id="camError"></div>
       </div>
       <canvas id="camCanvas" style="display:none;"></canvas>
-      <div class="cam-bottom">
+      <div class="cam-bottom" style="flex-direction:column; gap:10px;">
         <button class="shutter" onclick="takeShot()"><span></span></button>
+        <button type="button" class="retake-link" onclick="skipToTextPost()">写真なしで文章だけ投稿する</button>
       </div>
     </div>
 
@@ -598,7 +640,8 @@
         <span class="cam-hint">プレビュー</span>
         <span style="width:34px;"></span>
       </div>
-      <div class="viewfinder" id="previewPhoto"></div>
+      <div class="viewfinder" id="previewPhoto"><div class="no-photo-hint" id="noPhotoHint">📝 写真なし・文章のみの投稿</div></div>
+      <textarea id="postCaption" class="themed-field" placeholder="ひとこと(任意・写真なしの場合は入力してください)" oninput="updatePostBtnState()" style="min-height:56px;"></textarea>
 
       <div class="genre-pick">
         <div class="genre-pick-label">ジャンルを選ぶ</div>
@@ -679,10 +722,10 @@
       <p style="margin-top:10px;">・中学生〜17歳は、DM・プロジェクトマッチングも利用できます。マッチング相手は同世代の未成年者に限られます。</p>
       <p style="margin-top:10px;">・未成年の方が利用する場合、保護者の同意が必要です。</p>
       <p style="margin-top:10px;">・未成年ユーザーと成人ユーザーは、一般のDM・マッチング機能上で接触することはありません。</p>
-      <p style="margin-top:10px;">・投稿は撮影したその場の1枚のみで、加工はできません。投稿から24時間で自動的に非表示になります。</p>
-      <p style="margin-top:10px;">・投稿・DMはAIによる安全チェックを経ます(完全ではありません)。</p>
+      <p style="margin-top:10px;">・投稿は撮影したその場の1枚・文章のみ・写真と文章の組み合わせのいずれかで、写真は加工できません。投稿から24時間で自動的に非表示になります。</p>
+      <p style="margin-top:10px;">・投稿・DMはAIによる安全チェックを経ます(完全ではありません)。危険な内容(個人情報の要求、金銭要求、性的・暴力的な内容など)が検知された場合、アカウントが一時停止されることがあります。深刻なケースの最終確認には、保護者または信頼できる大人が必ず関わります。</p>
       <p style="margin-top:10px;">・年齢・氏名を偽っての登録、他者への危険な接触・勧誘、安全機構の回避は禁止です。</p>
-      <p style="margin-top:16px; color:#7a736c; font-size:.7rem;">これはプロトタイプ確認用の要約です。正式版では、弁護士確認済みの全文をここに表示します。</p>
+      <p style="margin-top:16px; color:#7a736c; font-size:.7rem;">これはプロトタイプ確認用の要約です。正式版では、弁護士確認済みの全文をここに表示します。(最終更新: 2026-09-04)</p>
     </div>
   </div>
 
@@ -690,7 +733,7 @@
   <div class="onboard-overlay" id="onboardOverlay">
     <div class="onboard-top">
       <button class="cam-x" onclick="closeOnboard()">✕</button>
-      <div class="onboard-steps"><i id="obs1"></i><i id="obs2"></i><i id="obs3"></i><i id="obs4"></i></div>
+      <div class="onboard-steps"><i id="obs1"></i><i id="obs2"></i><i id="obs3"></i><i id="obs4"></i><i id="obs5"></i></div>
       <span style="width:34px;"></span>
     </div>
 
@@ -714,12 +757,12 @@
         <p class="sub">なりすまし防止のため、全員に電話番号認証をお願いしています。SMSで確認コードを送ります。</p>
         <div class="consent-box">
           <label>電話番号</label>
-          <input type="tel" id="phoneInput" placeholder="090-1234-5678" oninput="updateNextBtn()">
+          <input type="tel" inputmode="numeric" id="phoneInput" placeholder="09012345678" oninput="normalizeDigitInput(this); updateNextBtn()">
         </div>
         <button class="demo-btn" style="margin-top:10px;" onclick="mockSendCode()">確認コードを送信(デモ)</button>
         <div class="consent-box" id="codeBox" style="display:none; margin-top:12px;">
           <label>確認コード(6桁)</label>
-          <input type="text" id="codeInput" placeholder="123456" oninput="updateNextBtn()">
+          <input type="text" inputmode="numeric" id="codeInput" placeholder="123456" oninput="normalizeDigitInput(this); updateNextBtn()">
         </div>
       </div>
 
@@ -764,6 +807,16 @@
           <button class="g-chip" data-g="#環境・クリーンテック" onclick="toggleObGenre(this)">#環境・クリーンテック</button>
           <button class="g-chip" data-g="#eスポーツ" onclick="toggleObGenre(this)">#eスポーツ</button>
         </div>
+      </div>
+
+      <div class="onboard-step" id="obStep5">
+        <h2>最後にプロフィールを作りましょう</h2>
+        <p class="sub">アイコンを追加しますか?自己紹介を追加しますか?ユーザー名は何にしますか?(自己紹介・アイコンは後からでも変更できます)</p>
+        <div class="genre-pick-label" style="margin-top:16px;">アイコン(任意)</div>
+        <div class="avatar-pick" id="obAvatarPick"></div>
+        <button type="button" class="retake-link" style="margin-top:10px;" onclick="openAvatarFilePicker('obAvatarPick')">📷 好きな写真を選ぶ</button>
+        <input type="text" id="obUsername" class="themed-field" placeholder="ユーザー名(必須)" style="margin-top:18px;" oninput="updateNextBtn()">
+        <textarea id="obBio" class="themed-field" placeholder="自己紹介(任意・興味のあること・作っているものなど)" style="min-height:80px;"></textarea>
       </div>
     </div>
 
@@ -812,7 +865,7 @@
     <div class="contact-body">
       <div class="genre-pick-label" style="margin-top:6px;">アイコン</div>
       <div class="avatar-pick" id="avatarPick"></div>
-      <button type="button" class="retake-link" style="margin-top:10px;" onclick="document.getElementById('avatarFileInput').click()">📷 好きな写真を選ぶ</button>
+      <button type="button" class="retake-link" style="margin-top:10px;" onclick="openAvatarFilePicker('avatarPick')">📷 好きな写真を選ぶ</button>
       <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="onAvatarFileSelected(event)">
       <input type="text" id="editUsername" placeholder="ユーザー名" style="margin-top:18px;">
       <textarea id="editBio" placeholder="自己紹介(興味のあること・作っているものなど)" style="min-height:90px;"></textarea>
@@ -895,14 +948,18 @@
 
   // 1枚のカードだけをDOMに置き、内容をJSで差し替える方式(重なりバグを構造的に無くすため)
   // 投稿はすべて24時間で消える設定という想定(ここではダミーで循環表示)
-  var posts = [
+  //
+  // サンプルのダミー投稿(あやと・みお…)は、あくまで開発者がデザインを確認するための
+  // ものであり、実際の訪問者に「他にもユーザーがいるように見せる」ための偽の賑わいを
+  // 見せるべきではない。そのため一般公開時(?dev=1が無い場合)はposts配列を空から始める。
+  var DEMO_SEED_POSTS = [
     { id:'p1', name:'あやと', genre:'#プログラミング', avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:'#111820', b:'#0a0d12' },
     { id:'p2', name:'みお',   genre:'#ロボット',      avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)', a:'#241226', b:'#120a16' },
     { id:'p3', name:'はると', genre:'#AI',           avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)', a:'#132318', b:'#0a140d' },
     { id:'p4', name:'ゆうな', genre:'#ものづくり',    avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)', a:'#0e2430', b:'#081218' },
     { id:'p5', name:'そら',   genre:'#起業',          avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)', a:'#2a2210', b:'#161006' }
   ];
-  var idx = 0;
+  var posts = document.body.classList.contains('dev-mode') ? DEMO_SEED_POSTS.slice() : [];
   var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定
 
   // フォロー状態は投稿者(post.id)ごとに永続させる。以前は毎回renderCard()で
@@ -914,6 +971,41 @@
     for(var i = 0; i < posts.length; i++){ if(posts[i].id === id) return posts[i]; }
     return null;
   }
+
+  // ---- スワイプ用フィードの並び ----
+  // 「興味あり」「興味なし」と判定した投稿は二度とスクロール欄に出さない。
+  // 「保留」は先送りにするだけで、また後で出てくる。自分自身の投稿(mine:true)は
+  // そもそもフィードには含めない(自分にフォロー/DMできてしまうバグを防ぐため)。
+  // 好きなジャンル(興味ありを押した回数が多いジャンル)を優先しつつ、
+  // 単調にならないよう3件に1件は別のジャンルも混ぜる。
+  var feedQueue = [];
+  var passedIds = {};    // postId -> true (興味なし済み)
+  var likedPostIds = {}; // postId -> true (興味あり済み)
+  var likedGenreCounts = {}; // genre -> 興味ありを押した回数
+
+  function shuffleArray(arr){
+    for(var i = arr.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildFeedQueue(){
+    var candidates = posts.filter(function(p){
+      return !p.mine && !passedIds[p.id] && !likedPostIds[p.id];
+    });
+    var preferred = shuffleArray(candidates.filter(function(p){ return (likedGenreCounts[p.genre] || 0) > 0; }));
+    var others = shuffleArray(candidates.filter(function(p){ return !(likedGenreCounts[p.genre] || 0); }));
+    var queue = [];
+    var pi = 0, oi = 0;
+    while(pi < preferred.length || oi < others.length){
+      for(var k = 0; k < 3 && pi < preferred.length; k++){ queue.push(preferred[pi++].id); }
+      if(oi < others.length){ queue.push(others[oi++].id); }
+    }
+    return queue;
+  }
+  feedQueue = buildFeedQueue();
 
   function applyFollowButtonState(btn, postId){
     var state = followState[postId];
@@ -940,19 +1032,45 @@
   }
 
   function refreshFollowButtons(){
-    var cardPost = posts[idx % posts.length];
-    applyFollowButtonState(document.getElementById('followBtn'), cardPost.id);
+    if(feedQueue.length){
+      applyFollowButtonState(document.getElementById('followBtn'), feedQueue[0]);
+    }
     if(currentOtherProfileId && document.getElementById('otherProfileOverlay').classList.contains('open')){
       applyFollowButtonState(document.getElementById('otherFollowBtn'), currentOtherProfileId);
     }
   }
 
   function renderCard(){
-    var p = posts[idx % posts.length];
+    var card = document.getElementById('card');
+    var empty = document.getElementById('feedEmpty');
+    if(feedQueue.length === 0){
+      card.style.display = 'none';
+      empty.classList.add('show');
+      return;
+    }
+    card.style.display = 'flex';
+    empty.classList.remove('show');
+    var p = findPost(feedQueue[0]);
     var photoEl = document.getElementById('cardPhoto');
-    photoEl.style.background = p.photo
-      ? 'url(' + p.photo + ') center/cover no-repeat'
-      : 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+    var capEl = document.getElementById('cardCaption');
+    if(p.photo){
+      photoEl.classList.remove('text-only');
+      photoEl.style.background = 'url(' + p.photo + ') center/cover no-repeat';
+    } else if(p.caption){
+      // 写真なし・文章のみの投稿
+      photoEl.classList.add('text-only');
+      photoEl.style.background = '';
+    } else {
+      photoEl.classList.remove('text-only');
+      photoEl.style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+    }
+    if(p.caption){
+      capEl.textContent = p.caption;
+      capEl.classList.add('show');
+    } else {
+      capEl.textContent = '';
+      capEl.classList.remove('show');
+    }
     document.getElementById('cardAvatar').style.background = p.avatar;
     document.getElementById('cardName').textContent = p.name;
     document.getElementById('cardGenre').textContent = p.genre;
@@ -982,18 +1100,30 @@
     currentOtherProfileId = null;
   }
 
-  // ---- 自分のプロフィール編集(ユーザー名・自己紹介・アイコン) ----
-  var myProfile = {
-    username: 'ユーザー名',
-    bio: 'ロボット作るの好きです。一緒に作ってくれる人募集中!',
-    avatar: 'linear-gradient(160deg,#ffd08a,#ff7a1a)'
-  };
+  // ---- 半角/全角どちらで打っても通る数字入力の補正 ----
+  // 電話番号・確認コードは日本語キーボードだと全角数字で打たれることが多いため、
+  // 半角しか受け付けないと「打ったのに進めない」バグに見える。入力の都度、
+  // 全角数字を半角へ変換して表示自体も揃える。
+  function toHalfWidthDigits(str){
+    return String(str).replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  }
+  function normalizeDigitInput(el){
+    var v = toHalfWidthDigits(el.value);
+    if(v !== el.value) el.value = v;
+  }
+
+  // ---- 自分のプロフィール(ユーザー名・自己紹介・アイコン) ----
+  // 登録時のプロフィール作成ステップと、後からの「プロフィールを編集」画面の
+  // どちらからも同じアバター選択UIを使い回すため、renderAvatarPicker()は
+  // avatarPickerTargetが指す入れ物(avatarPick または obAvatarPick)へ描画する。
+  var myProfile = { username: '', bio: '', avatar: 'linear-gradient(160deg,#ffd08a,#ff7a1a)' };
   var avatarPalette = [
     'linear-gradient(160deg,#ffd08a,#ff7a1a)', 'linear-gradient(160deg,#c9a6ff,#7a3ff0)',
     'linear-gradient(160deg,#9dffb0,#1fbf5c)', 'linear-gradient(160deg,#a6e6ff,#3f9ff0)',
     'linear-gradient(160deg,#ffe08a,#f0a63f)', 'linear-gradient(160deg,#ff9ab0,#e0356b)'
   ];
   var pendingAvatar = null;
+  var avatarPickerTarget = 'avatarPick';
 
   function renderMyProfile(){
     var view = document.getElementById('view-profile');
@@ -1004,7 +1134,8 @@
   renderMyProfile();
 
   function renderAvatarPicker(){
-    var wrap = document.getElementById('avatarPick');
+    var wrap = document.getElementById(avatarPickerTarget);
+    if(!wrap) return;
     wrap.innerHTML = '';
     var isCustomPhoto = avatarPalette.indexOf(pendingAvatar) === -1;
     if(isCustomPhoto){
@@ -1023,6 +1154,11 @@
       s.onclick = function(){ pendingAvatar = g; renderAvatarPicker(); };
       wrap.appendChild(s);
     });
+  }
+
+  function openAvatarFilePicker(target){
+    avatarPickerTarget = target;
+    document.getElementById('avatarFileInput').click();
   }
 
   function onAvatarFileSelected(e){
@@ -1047,6 +1183,7 @@
   }
 
   function openEditProfile(){
+    avatarPickerTarget = 'avatarPick';
     document.getElementById('editUsername').value = myProfile.username;
     document.getElementById('editBio').value = myProfile.bio;
     pendingAvatar = myProfile.avatar;
@@ -1236,7 +1373,7 @@
     document.getElementById('onboardOverlay').classList.remove('open');
   }
   function mockSendCode(){
-    var raw = document.getElementById('phoneInput').value.trim();
+    var raw = toHalfWidthDigits(document.getElementById('phoneInput').value.trim());
     var digits = raw.replace(/[^0-9]/g, '');
     if(digits.length < 10 || digits.length > 11){
       alert('正しい電話番号を入力してください(ハイフンありなしどちらでも可、10〜11桁)');
@@ -1250,7 +1387,7 @@
     obStep = n;
     document.querySelectorAll('.onboard-step').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById('obStep' + n).classList.add('active');
-    ['obs1','obs2','obs3','obs4'].forEach(function(id, i){
+    ['obs1','obs2','obs3','obs4','obs5'].forEach(function(id, i){
       document.getElementById(id).classList.toggle('done', i < n);
     });
     var btn = document.getElementById('obNextBtn');
@@ -1262,7 +1399,14 @@
         : '未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。';
       document.getElementById('consentBox').style.display = isAdult ? 'none' : 'block';
     }
-    btn.textContent = n === 4 ? 'はじめる' : '次へ';
+    if(n === 5){
+      avatarPickerTarget = 'obAvatarPick';
+      pendingAvatar = myProfile.avatar;
+      renderAvatarPicker();
+      document.getElementById('obUsername').value = myProfile.username;
+      document.getElementById('obBio').value = myProfile.bio;
+    }
+    btn.textContent = n === 5 ? 'はじめる' : '次へ';
     updateNextBtn();
   }
 
@@ -1292,12 +1436,20 @@
       var emailOk = isAdult || /\S+@\S+\.\S+/.test(document.getElementById('parentEmailInput').value.trim());
       btn.disabled = !(document.getElementById('agreeCheck').checked && emailOk);
     }
+    else if(obStep === 5){
+      btn.disabled = !document.getElementById('obUsername').value.trim();
+    }
     else { btn.disabled = false; }
   }
 
   function onboardNext(){
-    if(obStep < 4){ showObStep(obStep + 1); return; }
-    // 完了 → メインのフィードへ(登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+    if(obStep < 5){ showObStep(obStep + 1); return; }
+    // 完了 → プロフィールを確定してメインのフィードへ
+    // (登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+    myProfile.username = document.getElementById('obUsername').value.trim();
+    myProfile.bio = document.getElementById('obBio').value.trim();
+    myProfile.avatar = pendingAvatar;
+    renderMyProfile();
     try { localStorage.setItem('spark_onboarded', '1'); } catch(e){}
     onboardMandatory = false;
     document.getElementById('onboardOverlay').classList.remove('open');
@@ -1338,7 +1490,8 @@
   // ---- コメント ----
   var commentsByPost = {};
   function openComments(){
-    var p = posts[idx % posts.length];
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
     if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
     renderComments();
     document.getElementById('commentOverlay').classList.add('open');
@@ -1347,7 +1500,8 @@
     document.getElementById('commentOverlay').classList.remove('open');
   }
   function renderComments(){
-    var p = posts[idx % posts.length];
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
     var list = commentsByPost[p.id] || [];
     var box = document.getElementById('commentList');
     box.innerHTML = '';
@@ -1372,7 +1526,8 @@
     var input = document.getElementById('commentInput');
     var text = input.value.trim();
     if(!text) return;
-    var p = posts[idx % posts.length];
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
     if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
     commentsByPost[p.id].push({ text:text });
     input.value = '';
@@ -1471,14 +1626,29 @@
     card.addEventListener('pointercancel', endDrag);
 
     function resolveSwipe(kind, xDir, yDir){
+      if(feedQueue.length === 0) return;
       var flyX = xDir * 480, flyY = yDir * 480 - (kind === 'hold' ? 260 : 0);
       card.style.transform = 'translate(' + flyX + 'px,' + flyY + 'px) rotate(' + (xDir * 20) + 'deg)';
       card.style.opacity = '0';
+      var currentId = feedQueue[0];
+      var p = findPost(currentId);
       if(kind === 'like'){
-        likedPosts.push(posts[idx % posts.length]);
+        // 興味ありにした投稿は二度とスクロール欄に出さない。同じジャンルを優先表示するため、
+        // ジャンルごとの興味あり回数を記録し、以後の並びに反映する。
+        likedPosts.push(p);
+        likedPostIds[currentId] = true;
+        likedGenreCounts[p.genre] = (likedGenreCounts[p.genre] || 0) + 1;
+        feedQueue.shift();
+        feedQueue = buildFeedQueue(); // 好みの変化を次の並びにすぐ反映する
+      } else if(kind === 'pass'){
+        // 興味なしにした投稿も二度と出さない
+        passedIds[currentId] = true;
+        feedQueue.shift();
+      } else {
+        // 保留は先送りするだけ(また後で出てくる)
+        feedQueue.push(feedQueue.shift());
       }
       setTimeout(function(){
-        idx = (idx + 1) % posts.length;
         renderCard();
         card.style.transition = 'none';
         card.style.transform = 'translate(0,0) rotate(0)'; card.style.opacity = '1';
@@ -1554,13 +1724,15 @@
     stopCameraStream(); // プレビュー中はカメラを止めておく(電池・プライバシー配慮)
 
     setTimeout(function(){
+      document.getElementById('previewPhoto').classList.remove('no-photo-active');
       var preview = document.getElementById('previewPhoto');
       preview.style.background = 'url(' + capturedPhoto + ') center/cover no-repeat';
       document.getElementById('camStage').style.display = 'none';
       document.getElementById('previewStage').style.display = 'flex';
       selectedGenre = null;
+      document.getElementById('postCaption').value = '';
       document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
-      document.getElementById('postBtn').classList.remove('ready');
+      updatePostBtnState();
     }, 140);
   }
 
@@ -1571,23 +1743,49 @@
     startCameraStream(); // 撮り直すのでカメラを再度起動
   }
 
+  // 写真を撮らず、文章だけで投稿する(カメラを起動しないまま撮影後と同じプレビュー画面へ)
+  function skipToTextPost(){
+    stopCameraStream();
+    capturedPhoto = null;
+    var preview = document.getElementById('previewPhoto');
+    preview.style.background = '';
+    preview.classList.add('no-photo-active');
+    document.getElementById('camStage').style.display = 'none';
+    document.getElementById('previewStage').style.display = 'flex';
+    selectedGenre = null;
+    document.getElementById('postCaption').value = '';
+    document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+    updatePostBtnState();
+  }
+
   document.querySelectorAll('.g-chip').forEach(function(chip){
     chip.addEventListener('click', function(){
       document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
       chip.classList.add('sel');
       selectedGenre = chip.dataset.g;
-      document.getElementById('postBtn').classList.add('ready');
+      updatePostBtnState();
     });
   });
 
+  // 投稿ボタンが押せる条件: ジャンルが選ばれていて、かつ「写真」か「文章」の少なくとも一方がある
+  function updatePostBtnState(){
+    var caption = document.getElementById('postCaption').value.trim();
+    var ready = !!selectedGenre && (!!capturedPhoto || !!caption);
+    document.getElementById('postBtn').classList.toggle('ready', ready);
+  }
+
   function postShot(){
-    if(!selectedGenre || !capturedPhoto) return; // ジャンル未選択・未撮影では投稿できない
-    // 新しい投稿を先頭に追加し、次に表示されるカードにする(24時間表示という想定のダミー反映)
+    var caption = document.getElementById('postCaption').value.trim();
+    if(!selectedGenre) return; // ジャンル未選択では投稿できない
+    if(!capturedPhoto && !caption) return; // 写真も文章も無い投稿は不可
+    // 新しい投稿を先頭に追加する(24時間表示という想定のダミー反映)。
+    // mine:true の投稿はスワイプ用のフィードには出さない(以前は自分の投稿が
+    // 自分のカードとして出てしまい、自分にフォロー/DMできてしまうバグがあった)。
     posts.unshift({
       id:'mine-' + Date.now(), name:myProfile.username, genre:selectedGenre,
-      avatar:myProfile.avatar, photo:capturedPhoto
+      avatar:myProfile.avatar, photo:capturedPhoto, caption:caption, mine:true
     });
-    idx = 0;
+    feedQueue = buildFeedQueue();
     renderCard();
 
     var streakEl = document.getElementById('streakDays');
