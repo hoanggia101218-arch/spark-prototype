@@ -590,6 +590,7 @@
         <div class="row"><span>フォロワー</span><span>128人</span></div>
         <div class="row"><span>利用開始</span><span>2026年3月</span></div>
         <div class="row" onclick="reportFromProfile()" style="cursor:pointer;"><span style="color:#ff8a70;">通報する</span><span>›</span></div>
+        <div class="row" onclick="logoutOrSwitchAccount()" style="cursor:pointer;"><span>ログアウト / アカウント切り替え</span><span>›</span></div>
       </div>
 
       <div class="p-main">
@@ -1774,6 +1775,21 @@
     if(safetyBtn) selectContactCat(safetyBtn, 'safety');
   }
 
+  // ログアウト/アカウント切り替え。以前はこの機能が一切無く、一度登録すると
+  // 同じ端末・同じブラウザでは二度と別アカウントに切り替えられなかった
+  // (ブラウザのデータを手動で消すしか方法が無かった)。
+  async function logoutOrSwitchAccount(){
+    closeAllPops();
+    if(!confirm('ログアウトしますか?このブラウザに保存されているログイン情報が消え、もう一度登録画面からやり直せるようになります。')) return;
+    try { if(supabaseClient) await supabaseClient.auth.signOut(); } catch(e){}
+    try {
+      localStorage.removeItem('spark_onboarded');
+      localStorage.removeItem('spark_age_tier');
+      localStorage.removeItem('spark_user_id');
+    } catch(e){}
+    location.reload();
+  }
+
   // ---- コメント ----
   var commentsByPost = {};
   function openComments(){
@@ -2104,6 +2120,18 @@
   (function(){
     var alreadyOnboarded = false;
     try { alreadyOnboarded = localStorage.getItem('spark_onboarded') === '1'; } catch(e){}
+    // 「登録済みフラグは立っているのに本物のアカウントID(myUserId)が無い」状態は、
+    // バックエンド接続前の古いバージョンで登録を済ませてしまった実機で実際に発生した。
+    // このままだと「@未登録(開発者プレビュー)」のまま二度と登録画面に戻れなくなるため、
+    // このケースは未登録扱いに戻し、登録をやり直せるようにする。
+    if(alreadyOnboarded && !myUserId){
+      alreadyOnboarded = false;
+      try {
+        localStorage.removeItem('spark_onboarded');
+        localStorage.removeItem('spark_age_tier');
+        localStorage.removeItem('spark_user_id');
+      } catch(e){}
+    }
     if(!alreadyOnboarded && !document.body.classList.contains('dev-mode')){
       openOnboard(true);
     }
