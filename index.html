@@ -1725,9 +1725,9 @@
       myProfile.username = username;
       myProfile.bio = bio;
       myProfile.avatar = avatar;
-      renderMyProfile();
       myAgeTier = obAge;
-      myUserId = userId;
+      myUserId = userId; // renderMyProfile()がハンドル(@user_...)を組み立てるのに使うため、呼び出し前に必ず設定する
+      renderMyProfile();
       applyAgeTierUI();
       try {
         localStorage.setItem('spark_onboarded', '1');
