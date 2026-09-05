@@ -63,8 +63,13 @@
   body.dev-mode .dev-panel{ display:flex; }
 
   /* 実機(狭い画面)の開発者モードでは、検証用パネルは邪魔にならない小さな歯車ボタンの裏に隠し、
-     本体は画面いっぱいに使う「本物のアプリ」に近い見た目にする */
-  @media (max-width:480px){
+     本体は画面いっぱいに使う「本物のアプリ」に近い見た目にする。
+     max-width:480pxだけで判定すると、一部の実機ブラウザ(例: Braveなど)で
+     CSS上の論理ビューポート幅が480pxを超えて報告され、スマホなのに枠付きの
+     プレビュー用フレーム(比率がおかしい・小さい)のまま表示されてしまう不具合が
+     実機で確認された。指で操作するタッチ専用デバイス(hover:none/pointer:coarse)
+     であれば、報告される幅に関わらず実機表示を優先するようにする。 */
+  @media (max-width:480px), (hover:none) and (pointer:coarse){
     body{ padding:0; gap:0; }
     body.dev-mode .dev-fab{
       display:flex; align-items:center; justify-content:center;
@@ -394,6 +399,12 @@
     aspect-ratio:1; border-radius:14px; border:1.5px dashed #444; display:flex; align-items:center; justify-content:center;
     text-align:center; font-size:.7rem; color:#777; padding:10px;
   }
+  .e-empty-note{ text-align:center; font-size:.76rem; color:#7a736c; margin-top:24px; line-height:1.8; }
+  .e-thumb.text-only-thumb{ display:flex; align-items:center; justify-content:center; padding:8px; text-align:center; }
+  .e-thumb.text-only-thumb .e-cap{
+    font-family:var(--display); font-weight:700; font-size:.68rem; color:#fff; line-height:1.4;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+  }
 
   /* ---- camera ---- */
   .camera-overlay{
@@ -572,7 +583,7 @@
 
     <div class="view" id="view-profile" style="position:relative;">
       <div class="p-headrow">
-        <div class="p-handle">@spark_user01</div>
+        <div class="p-handle" id="pHandle">@spark_user01</div>
         <button class="dots-btn" onclick="togglePop('morePop')">⋯</button>
       </div>
       <div class="popover" id="morePop" style="top:44px;">
@@ -593,13 +604,28 @@
         <div class="p-stat"><b>12</b><span>投稿</span></div>
       </div>
 
-      <div class="ephemeral-head">
-        <span class="mono-tag">24時間限定</span>
-        <p>投稿は24時間で消えます。「今」のリアルだけがみんなに見えています。</p>
+      <div class="ephemeral-head" style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <span class="mono-tag">24時間限定</span>
+          <p>投稿は24時間で消えます。「今」のリアルだけがみんなに見えています。</p>
+        </div>
+        <button class="p-edit-btn" style="margin-top:0; white-space:nowrap;" onclick="openMyPostsArchive()">過去の投稿</button>
       </div>
-      <div class="ephemeral-grid">
-        <div class="e-thumb" style="background:linear-gradient(160deg,#111820,#0a0d12);"><span>18時間前</span></div>
-        <div class="e-thumb" style="background:linear-gradient(160deg,#241226,#120a16);"><span>4時間前</span></div>
+      <div class="ephemeral-grid" id="ephemeralGrid"></div>
+      <p class="e-empty-note" id="ephemeralEmptyNote" style="display:none;">まだ投稿がありません。下の＋ボタンから投稿してみましょう。</p>
+    </div>
+
+    <!-- 過去の投稿(24時間を過ぎたものも含む、自分だけが見られる履歴) -->
+    <div class="contact-overlay" id="myPostsArchiveOverlay">
+      <div class="cam-top" style="padding:18px;">
+        <button class="cam-x" onclick="closeMyPostsArchive()">✕</button>
+        <span class="cam-hint">過去の投稿</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="contact-body">
+        <p class="view-sub">24時間を過ぎた投稿はほかの人には見えなくなりますが、ここではいつでも自分の投稿履歴を確認できます。</p>
+        <div class="ephemeral-grid" id="archiveGrid" style="margin-top:14px;"></div>
+        <p class="e-empty-note" id="archiveEmptyNote" style="display:none;">まだ投稿がありません。</p>
       </div>
     </div>
   </div>
@@ -1000,15 +1026,31 @@
   // サンプルのダミー投稿(あやと・みお…)は、あくまで開発者がデザインを確認するための
   // ものであり、実際の訪問者に「他にもユーザーがいるように見せる」ための偽の賑わいを
   // 見せるべきではない。そのため一般公開時(?dev=1が無い場合)はposts配列を空から始める。
+  var HOUR_MS = 60 * 60 * 1000;
+  var now0 = Date.now();
   var DEMO_SEED_POSTS = [
-    { id:'p1', name:'あやと', genre:'#プログラミング', avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:'#111820', b:'#0a0d12' },
-    { id:'p2', name:'みお',   genre:'#ロボット',      avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)', a:'#241226', b:'#120a16' },
-    { id:'p3', name:'はると', genre:'#AI',           avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)', a:'#132318', b:'#0a140d' },
-    { id:'p4', name:'ゆうな', genre:'#ものづくり',    avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)', a:'#0e2430', b:'#081218' },
-    { id:'p5', name:'そら',   genre:'#起業',          avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)', a:'#2a2210', b:'#161006' }
+    { id:'p1', name:'あやと', genre:'#プログラミング', avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:'#111820', b:'#0a0d12', createdAt: now0 - 2 * HOUR_MS },
+    { id:'p2', name:'みお',   genre:'#ロボット',      avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)', a:'#241226', b:'#120a16', createdAt: now0 - 5 * HOUR_MS },
+    { id:'p3', name:'はると', genre:'#AI',           avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)', a:'#132318', b:'#0a140d', createdAt: now0 - 9 * HOUR_MS },
+    { id:'p4', name:'ゆうな', genre:'#ものづくり',    avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)', a:'#0e2430', b:'#081218', createdAt: now0 - 14 * HOUR_MS },
+    { id:'p5', name:'そら',   genre:'#起業',          avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)', a:'#2a2210', b:'#161006', createdAt: now0 - 20 * HOUR_MS }
   ];
   var posts = document.body.classList.contains('dev-mode') ? DEMO_SEED_POSTS.slice() : [];
-  var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定
+  var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定(投稿自体が消えても手元には残る)
+
+  // 投稿から24時間以内かどうか。フィードは24時間以内の投稿だけを対象にする
+  // (ストーリーのような一時性)。likedPostsは別枠でこの制限を受けない。
+  function isWithin24h(p){
+    return typeof p.createdAt !== 'number' || (Date.now() - p.createdAt) < 24 * HOUR_MS;
+  }
+  function formatElapsed(createdAt){
+    var mins = Math.floor((Date.now() - createdAt) / 60000);
+    if(mins < 1) return 'たった今';
+    if(mins < 60) return mins + '分前';
+    var hrs = Math.floor(mins / 60);
+    if(hrs < 24) return hrs + '時間前';
+    return Math.floor(hrs / 24) + '日前';
+  }
 
   // フォロー状態は投稿者(post.id)ごとに永続させる。以前は毎回renderCard()で
   // ボタン表示を強制的に「フォロー」へ戻していたため、一度フォローした相手でも
@@ -1117,7 +1159,7 @@
 
   function buildFeedQueue(){
     var candidates = posts.filter(function(p){
-      return !p.mine && !passedIds[p.id] && !likedPostIds[p.id];
+      return !p.mine && !passedIds[p.id] && !likedPostIds[p.id] && isWithin24h(p);
     });
     var preferred = shuffleArray(candidates.filter(function(p){ return (likedGenreCounts[p.genre] || 0) > 0; }));
     var others = shuffleArray(candidates.filter(function(p){ return !(likedGenreCounts[p.genre] || 0); }));
@@ -1259,8 +1301,62 @@
     view.querySelector('.p-username').textContent = myProfile.username;
     view.querySelector('.p-bio').textContent = myProfile.bio;
     view.querySelector('.p-avatar').style.background = myProfile.avatar;
+    document.getElementById('pHandle').textContent = myUserId ? '@user_' + myUserId.slice(0, 8) : '@未登録(開発者プレビュー)';
+    renderEphemeralGrid();
   }
   renderMyProfile();
+
+  // 自分の投稿を1枚分のサムネイルとして作る(24時間限定欄・過去の投稿アーカイブ共通)
+  function buildPostThumb(p){
+    var d = document.createElement('div');
+    d.className = 'e-thumb';
+    if(p.photo){
+      d.style.background = 'url(' + p.photo + ') center/cover no-repeat';
+    } else {
+      d.classList.add('text-only-thumb');
+      d.style.background = 'linear-gradient(160deg,#241a10,#141414)';
+      var capSpan = document.createElement('span');
+      capSpan.className = 'e-cap';
+      capSpan.textContent = p.caption || '';
+      d.appendChild(capSpan);
+    }
+    var timeSpan = document.createElement('span');
+    timeSpan.textContent = formatElapsed(p.createdAt || Date.now());
+    d.appendChild(timeSpan);
+    return d;
+  }
+
+  function renderEphemeralGrid(){
+    var grid = document.getElementById('ephemeralGrid');
+    var emptyNote = document.getElementById('ephemeralEmptyNote');
+    var mine = posts.filter(function(p){ return p.mine && isWithin24h(p); })
+      .sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+    grid.innerHTML = '';
+    if(mine.length === 0){
+      emptyNote.style.display = 'block';
+      return;
+    }
+    emptyNote.style.display = 'none';
+    mine.forEach(function(p){ grid.appendChild(buildPostThumb(p)); });
+  }
+
+  function openMyPostsArchive(){
+    var grid = document.getElementById('archiveGrid');
+    var emptyNote = document.getElementById('archiveEmptyNote');
+    var mine = posts.filter(function(p){ return p.mine; })
+      .sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+    grid.innerHTML = '';
+    if(mine.length === 0){
+      emptyNote.style.display = 'block';
+    } else {
+      emptyNote.style.display = 'none';
+      mine.forEach(function(p){ grid.appendChild(buildPostThumb(p)); });
+    }
+    document.getElementById('myPostsArchiveOverlay').classList.add('open');
+  }
+  function closeMyPostsArchive(){
+    document.getElementById('myPostsArchiveOverlay').classList.remove('open');
+  }
 
   function renderAvatarPicker(){
     var wrap = document.getElementById(avatarPickerTarget);
@@ -1974,9 +2070,10 @@
     // 自分のカードとして出てしまい、自分にフォロー/DMできてしまうバグがあった)。
     posts.unshift({
       id:'mine-' + Date.now(), name:myProfile.username, genre:selectedGenre,
-      avatar:myProfile.avatar, photo:capturedPhoto, caption:caption, mine:true
+      avatar:myProfile.avatar, photo:capturedPhoto, caption:caption, mine:true, createdAt:Date.now()
     });
     feedQueue = buildFeedQueue();
+    renderEphemeralGrid();
     renderCard();
 
     var streakEl = document.getElementById('streakDays');
