@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#141414">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23141414'/%3E%3Cpath d='M32 8 L37 27 L56 32 L37 37 L32 56 L27 37 L8 32 L27 27 Z' fill='%23ff7a1a'/%3E%3C/svg%3E">
 <title>Spark Feed Skeleton</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;600&display=swap');
 
@@ -215,6 +216,9 @@
   }
   .dm-empty{ display:none; text-align:center; font-size:.78rem; color:#7a736c; margin-top:60px; line-height:1.8; }
   .dm-empty.show{ display:block; }
+  .user-search-results{ display:none; margin-top:6px; }
+  .user-search-results.show{ display:block; }
+  .user-search-results .dm-note{ text-align:center; padding:10px 0; }
 
   /* ---- DMチャット ---- */
   .dm-chat-overlay{
@@ -554,6 +558,12 @@
 
     <div class="view" id="view-dm">
       <div class="view-title">DM</div>
+
+      <div class="view-sub" style="margin-top:14px;">ユーザーを探す</div>
+      <input class="dm-search" id="userSearchInput" placeholder="ユーザー名でほかの登録ユーザーを検索" oninput="searchRealUsers()">
+      <div class="user-search-results" id="userSearchResults"></div>
+
+      <div class="view-sub" style="margin-top:22px;">つながっている相手</div>
       <input class="dm-search" id="dmSearch" placeholder="つながっている人を検索" oninput="renderDmList()">
       <p class="dm-note">DMできるのは、お互いフォローし合っていて条件を満たした相手だけです。</p>
       <div class="dm-list" id="dmList"></div>
@@ -764,6 +774,15 @@
           <label>確認コード(6桁)</label>
           <input type="text" inputmode="numeric" id="codeInput" placeholder="123456" oninput="normalizeDigitInput(this); updateNextBtn()">
         </div>
+        <div class="consent-box" style="margin-top:14px;">
+          <label>メールアドレス(ログインに使用します)</label>
+          <input type="email" id="obEmail" class="themed-field" placeholder="you@example.com" oninput="updateNextBtn()">
+        </div>
+        <div class="consent-box" style="margin-top:10px;">
+          <label>パスワード(8文字以上)</label>
+          <input type="password" id="obPassword" class="themed-field" placeholder="8文字以上" oninput="updateNextBtn()">
+        </div>
+        <div class="cam-error" id="obSignupError" style="position:static; display:none; margin-top:12px;"></div>
       </div>
 
       <div class="onboard-step" id="obStep3">
@@ -899,6 +918,15 @@
     document.body.classList.add('dev-mode');
   }
 
+  // 本物のSupabaseバックエンドへの接続。まずは「アカウント作成(メール+生年月日)」と
+  // 「登録ユーザーの検索」だけを本物のデータベースに繋ぐ(投稿本体・DMの実データ連携は
+  // 写真の保存先(Supabase Storage)の準備が別途必要なため、次の段階で対応する)。
+  var SUPABASE_URL = 'https://ianjrwmpgtmpnbowuomj.supabase.co';
+  var SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lPvsT1jyk0D1ElEHU5rpLQ_c7pRA4tw';
+  var supabaseClient = (typeof supabase !== 'undefined')
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+    : null;
+
   // device(枠)の実際の表示幅に合わせて、390px設計の中身を縮小する
   var currentZoom = 1; // ドラッグ量の補正に使う(縮小表示でもスワイプ感度を合わせるため)
   (function(){
@@ -926,7 +954,11 @@
   // 開けてしまう(仕様上あってはならない)バグがあった。localStorageにも保存し、
   // 一度登録した端末を閉じて開き直しても制限が外れないようにする。
   var myAgeTier = null;
-  try { myAgeTier = localStorage.getItem('spark_age_tier'); } catch(e){}
+  var myUserId = null; // 実際のusersテーブルの行id(supabase auth.uid())。登録完了時に確定する。
+  try {
+    myAgeTier = localStorage.getItem('spark_age_tier');
+    myUserId = localStorage.getItem('spark_user_id');
+  } catch(e){}
 
   function applyAgeTierUI(){
     var dmTab = document.getElementById('dmTab');
@@ -983,9 +1015,85 @@
   // カードを何枚か見て戻ってくるとフォロー状態が消えて見えるバグがあった。
   var followState = {}; // postId -> 'following' | 'dm' (無ければ未フォロー)
 
+  var realUserCache = {}; // 実際の検索結果をキャッシュ(userId -> 表示用オブジェクト)。プロフィール表示に使う。
   function findPost(id){
     for(var i = 0; i < posts.length; i++){ if(posts[i].id === id) return posts[i]; }
+    if(realUserCache[id]) return realUserCache[id];
     return null;
+  }
+
+  // ---- 登録ユーザー検索(本物のバックエンド) ----
+  var userSearchTimer = null;
+  function searchRealUsers(){
+    clearTimeout(userSearchTimer);
+    var q = document.getElementById('userSearchInput').value.trim();
+    var box = document.getElementById('userSearchResults');
+    if(!q){ box.classList.remove('show'); box.innerHTML = ''; return; }
+    box.classList.add('show');
+    userSearchTimer = setTimeout(function(){ runUserSearch(q); }, 300);
+  }
+
+  async function runUserSearch(q){
+    var box = document.getElementById('userSearchResults');
+    box.innerHTML = '';
+    var loading = document.createElement('div');
+    loading.className = 'dm-note';
+    loading.textContent = '検索中…';
+    box.appendChild(loading);
+
+    if(!supabaseClient){
+      box.innerHTML = '';
+      var errEl = document.createElement('div');
+      errEl.className = 'dm-note';
+      errEl.textContent = 'バックエンドに接続できませんでした。';
+      box.appendChild(errEl);
+      return;
+    }
+
+    try {
+      var res = await supabaseClient.rpc('search_users', { query: q });
+      if(res.error) throw res.error;
+      var rows = (res.data || []).filter(function(u){ return u.id !== myUserId; });
+      box.innerHTML = '';
+      if(rows.length === 0){
+        var empty = document.createElement('div');
+        empty.className = 'dm-note';
+        empty.textContent = '「' + q + '」に一致する登録ユーザーが見つかりませんでした。';
+        box.appendChild(empty);
+        return;
+      }
+      rows.forEach(function(u){
+        realUserCache[u.id] = {
+          id: u.id, name: u.display_name, genre: '',
+          avatar: u.avatar || 'linear-gradient(160deg,#ffd08a,#ff7a1a)'
+        };
+        var row = document.createElement('div');
+        row.className = 'dm-row';
+        var avatarDiv = document.createElement('div');
+        avatarDiv.className = 'avatar';
+        avatarDiv.style.background = realUserCache[u.id].avatar;
+        var metaDiv = document.createElement('div');
+        metaDiv.className = 'dm-meta';
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'dm-name';
+        nameDiv.textContent = u.display_name;
+        var lastDiv = document.createElement('div');
+        lastDiv.className = 'dm-last';
+        lastDiv.textContent = u.bio || '自己紹介はまだありません';
+        metaDiv.appendChild(nameDiv);
+        metaDiv.appendChild(lastDiv);
+        row.appendChild(avatarDiv);
+        row.appendChild(metaDiv);
+        row.addEventListener('click', function(){ openOtherProfile(u.id); });
+        box.appendChild(row);
+      });
+    } catch(err) {
+      box.innerHTML = '';
+      var errBox = document.createElement('div');
+      errBox.className = 'dm-note';
+      errBox.textContent = '検索に失敗しました: ' + (err && err.message ? err.message : '不明なエラー');
+      box.appendChild(errBox);
+    }
   }
 
   // ---- スワイプ用フィードの並び ----
@@ -1108,7 +1216,9 @@
     currentOtherProfileId = postId;
     document.getElementById('otherAvatar').style.background = p.avatar;
     document.getElementById('otherName').textContent = p.name;
-    document.getElementById('otherGenre').textContent = p.genre;
+    var genreEl = document.getElementById('otherGenre');
+    genreEl.textContent = p.genre || '';
+    genreEl.style.display = p.genre ? '' : 'none';
     var btn = document.getElementById('otherFollowBtn');
     btn.onclick = function(){ onFollow(postId, btn); };
     applyFollowButtonState(btn, postId);
@@ -1377,6 +1487,9 @@
     document.getElementById('agreeCheck').checked = false;
     document.getElementById('phoneInput').value = '';
     document.getElementById('codeInput').value = '';
+    document.getElementById('obEmail').value = '';
+    document.getElementById('obPassword').value = '';
+    document.getElementById('obSignupError').style.display = 'none';
     document.getElementById('parentEmailInput').value = '';
     document.getElementById('codeBox').style.display = 'none';
     document.querySelectorAll('#obStep4 .g-chip').forEach(function(c){ c.classList.remove('sel'); });
@@ -1449,7 +1562,10 @@
     if(obStep === 1){ btn.disabled = !obAge; }
     else if(obStep === 2){
       var code = document.getElementById('codeInput').value.trim();
-      btn.disabled = !(phoneCodeSent && /^[0-9]{6}$/.test(code));
+      var email = document.getElementById('obEmail').value.trim();
+      var password = document.getElementById('obPassword').value;
+      var emailOk = /\S+@\S+\.\S+/.test(email);
+      btn.disabled = !(phoneCodeSent && /^[0-9]{6}$/.test(code) && emailOk && password.length >= 8);
     }
     else if(obStep === 3){
       var isAdult = obAge === 'adult';
@@ -1464,24 +1580,74 @@
 
   function onboardNext(){
     if(obStep < 5){ showObStep(obStep + 1); return; }
-    // 完了 → プロフィールを確定してメインのフィードへ
-    // (登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
-    myProfile.username = document.getElementById('obUsername').value.trim();
-    myProfile.bio = document.getElementById('obBio').value.trim();
-    myProfile.avatar = pendingAvatar;
-    renderMyProfile();
-    myAgeTier = obAge;
-    applyAgeTierUI();
+    completeRegistration();
+  }
+
+  // 登録完了 → 本物のSupabaseアカウントを作成し、usersテーブルに行を作ってからメインのフィードへ。
+  // (登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+  async function completeRegistration(){
+    var btn = document.getElementById('obNextBtn');
+    var errBox = document.getElementById('obSignupError');
+    errBox.style.display = 'none';
+
+    if(!supabaseClient){
+      errBox.textContent = 'バックエンドへの接続に失敗しました。通信環境をご確認のうえ、もう一度お試しください。';
+      errBox.style.display = 'block';
+      showObStep(2);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '登録しています…';
+
+    var username = document.getElementById('obUsername').value.trim();
+    var email = document.getElementById('obEmail').value.trim();
+    var password = document.getElementById('obPassword').value;
+    var bio = document.getElementById('obBio').value.trim();
+    var avatar = pendingAvatar;
+
+    // 生年月日は今の登録画面ではまだ個別入力する欄が無いため、選んだ年齢帯(obAge)から
+    // 代表的な生年月日を仮に割り当てている(実際の生年月日入力欄の追加は次の段階のTODO)。
+    var repYears = obAge === 'elem' ? 11 : (obAge === 'teen' ? 15 : 25);
+    var repDate = new Date();
+    repDate.setFullYear(repDate.getFullYear() - repYears);
+    var birthdate = repDate.toISOString().slice(0, 10);
+
     try {
-      localStorage.setItem('spark_onboarded', '1');
-      localStorage.setItem('spark_age_tier', obAge || '');
-    } catch(e){}
-    onboardMandatory = false;
-    document.getElementById('onboardOverlay').classList.remove('open');
-    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
-    document.getElementById('view-feed').classList.add('active');
-    document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
-    document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+      var signUpRes = await supabaseClient.auth.signUp({ email: email, password: password });
+      if(signUpRes.error) throw signUpRes.error;
+      var userId = signUpRes.data && signUpRes.data.user ? signUpRes.data.user.id : null;
+      if(!userId) throw new Error('ユーザーIDを取得できませんでした。');
+
+      var insertRes = await supabaseClient.from('users').insert({
+        id: userId, display_name: username, birthdate: birthdate, bio: bio, avatar: avatar,
+        guardian_contact: document.getElementById('parentEmailInput').value.trim() || null
+      });
+      if(insertRes.error) throw insertRes.error;
+
+      myProfile.username = username;
+      myProfile.bio = bio;
+      myProfile.avatar = avatar;
+      renderMyProfile();
+      myAgeTier = obAge;
+      myUserId = userId;
+      applyAgeTierUI();
+      try {
+        localStorage.setItem('spark_onboarded', '1');
+        localStorage.setItem('spark_age_tier', obAge || '');
+        localStorage.setItem('spark_user_id', userId);
+      } catch(e){}
+      onboardMandatory = false;
+      document.getElementById('onboardOverlay').classList.remove('open');
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      document.getElementById('view-feed').classList.add('active');
+      document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+    } catch(err) {
+      errBox.textContent = '登録に失敗しました: ' + (err && err.message ? err.message : '不明なエラー');
+      errBox.style.display = 'block';
+      showObStep(2); // メール・パスワード入力に戻す(エラー表示欄がここにあるため)
+    }
   }
 
   // ---- お問い合わせ ----
