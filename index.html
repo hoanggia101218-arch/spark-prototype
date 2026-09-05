@@ -2108,6 +2108,22 @@
       openOnboard(true);
     }
   })();
+
+  // 登録済みユーザーがページを再読み込みした際、ログイン中のsupabaseセッションは
+  // 残っているのに、プロフィール表示(ユーザー名・自己紹介・アイコン)が空欄に
+  // 戻ってしまうバグがあったため、本物のusersテーブルから取得し直す。
+  (async function restoreMyProfileFromBackend(){
+    if(!myUserId || !supabaseClient) return;
+    try {
+      await supabaseClient.auth.getSession(); // セッション復元を待ってから照会する
+      var res = await supabaseClient.from('users').select('display_name,bio,avatar').eq('id', myUserId).maybeSingle();
+      if(res.error || !res.data) return;
+      myProfile.username = res.data.display_name || myProfile.username;
+      myProfile.bio = res.data.bio || '';
+      myProfile.avatar = res.data.avatar || myProfile.avatar;
+      renderMyProfile();
+    } catch(e){}
+  })();
 </script>
 </body>
 </html>
