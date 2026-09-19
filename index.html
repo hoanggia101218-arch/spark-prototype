@@ -932,6 +932,7 @@
       <span class="mono-tag" id="otherGenre" style="margin-top:10px; display:inline-block;"></span>
       <p style="font-size:.76rem; color:#9a9490; margin-top:16px; line-height:1.6;">興味が合いそうだと思ったら、フォローしてつながりましょう。</p>
       <button class="pill-btn follow" id="otherFollowBtn" style="width:100%; margin-top:22px;"></button>
+      <button class="pill-btn follow" id="otherDmBtn" style="width:100%; margin-top:22px; display:none;">メッセージを送る</button>
     </div>
   </div>
  </div>
@@ -1003,7 +1004,7 @@
     btn.classList.add('active');
     closeAllPops();
     if(name === 'likes') renderLikes();
-    if(name === 'dm') renderDmList();
+    if(name === 'dm'){ renderDmList(); loadRealThreads(); }
   }
 
   function togglePop(id){
@@ -1265,6 +1266,12 @@
     var btn = document.getElementById('otherFollowBtn');
     btn.onclick = function(){ onFollow(postId, btn); };
     applyFollowButtonState(btn, postId);
+    // 実在の登録ユーザー(検索結果)にはフォロー→DM解禁の仮フローではなく、本物のDM開始ボタンを出す
+    var isReal = !!realUserCache[postId] && !posts.some(function(x){ return x.id === postId; });
+    var dmBtn = document.getElementById('otherDmBtn');
+    btn.style.display = isReal ? 'none' : '';
+    dmBtn.style.display = (isReal && myAgeTier !== 'elem') ? '' : 'none';
+    dmBtn.onclick = function(){ closeOtherProfile(); openRealDM(postId); };
     document.getElementById('otherProfileOverlay').classList.add('open');
   }
   function closeOtherProfile(){
@@ -1497,7 +1504,7 @@
     filtered.forEach(function(c){
       var row = document.createElement('div');
       row.className = 'dm-row';
-      var last = c.messages.length ? c.messages[c.messages.length - 1].text : 'まだメッセージはありません';
+      var last = c.messages.length ? c.messages[c.messages.length - 1].text : (c.lastPreview || 'まだメッセージはありません');
       // innerHTML+文字列結合はせず、DOM APIとtextContentで安全に組み立てる
       // (c.name/c.avatarは編集可能なユーザーデータなので、HTMLとして解釈されるとXSSになりうる)
       var avatarDiv = document.createElement('div');
@@ -1530,11 +1537,92 @@
     document.getElementById('chatName').textContent = c.name;
     renderMessages();
     document.getElementById('dmChatOverlay').classList.add('open');
+    if(c.real){ loadRealMessages(c); startDmPoll(); }
   }
   function closeDmChat(){
     document.getElementById('dmChatOverlay').classList.remove('open');
     activeChatId = null;
+    stopDmPoll();
     renderDmList();
+  }
+
+  // ---- 本物のDM(Supabase: dm_threads / dm_messages) ----
+  // 年齢層の壁(小学生不可・中高生同士・成人同士のみ)はサーバー側のRLS/RPCが強制する。
+  // フロントは結果を表示するだけで、ここを迂回しても壁は破れない。
+  var dmPollTimer = null;
+  function dmErrorText(err){
+    var m = (err && err.message) ? String(err.message) : '';
+    if(m.indexOf('dm_not_allowed') !== -1) return 'この相手とはDMできません。';
+    if(m.indexOf('account_not_active') !== -1) return 'このアカウントは現在DMを利用できません。';
+    if(m.indexOf('not_authenticated') !== -1) return 'ログインが必要です。';
+    return 'うまくいきませんでした。少し待ってからもう一度お試しください。';
+  }
+  function startDmPoll(){
+    stopDmPoll();
+    dmPollTimer = setInterval(function(){
+      var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+      if(c && c.real) loadRealMessages(c);
+    }, 5000);
+  }
+  function stopDmPoll(){
+    if(dmPollTimer){ clearInterval(dmPollTimer); dmPollTimer = null; }
+  }
+  async function loadRealThreads(){
+    if(!supabaseClient || !myUserId || myAgeTier === 'elem') return;
+    try {
+      var res = await supabaseClient.rpc('list_my_dm_threads');
+      if(res.error) throw res.error;
+      (res.data || []).forEach(function(t){
+        var c = connections.filter(function(x){ return x.id === t.other_id; })[0];
+        if(!c){
+          c = { id: t.other_id, name: t.other_name, avatar: t.other_avatar || 'linear-gradient(160deg,#ffd08a,#ff7a1a)', messages: [] };
+          connections.push(c);
+        }
+        c.real = true;
+        c.threadId = t.thread_id;
+        c.lastPreview = t.last_body || '';
+      });
+      if(document.getElementById('view-dm').classList.contains('active')) renderDmList();
+    } catch(e) { /* 一覧の取得に失敗しても既存表示は維持する */ }
+  }
+  async function loadRealMessages(c){
+    if(!supabaseClient || !c.threadId) return;
+    try {
+      var res = await supabaseClient.from('dm_messages')
+        .select('id,sender_id,body,created_at,read_at')
+        .eq('thread_id', c.threadId).order('created_at', { ascending: true }).limit(200);
+      if(res.error) throw res.error;
+      var rows = res.data || [];
+      var before = c.messages.length;
+      c.messages = rows.map(function(m){ return { from: m.sender_id === myUserId ? 'me' : 'them', text: m.body }; });
+      if(activeChatId === c.id && (c.messages.length !== before)) renderMessages();
+      var hasUnread = rows.some(function(m){ return m.sender_id !== myUserId && !m.read_at; });
+      if(hasUnread && activeChatId === c.id){
+        await supabaseClient.from('dm_messages').update({ read_at: new Date().toISOString() })
+          .eq('thread_id', c.threadId).neq('sender_id', myUserId).is('read_at', null);
+      }
+    } catch(e) { /* 次のポーリングで再試行 */ }
+  }
+  async function openRealDM(userId){
+    if(myAgeTier === 'elem') return;
+    if(!supabaseClient || !myUserId){ alert('DMを使うにはログインが必要です。'); return; }
+    var u = realUserCache[userId];
+    if(!u) return;
+    try {
+      var res = await supabaseClient.rpc('open_dm_thread', { other: userId });
+      if(res.error) throw res.error;
+      var c = connections.filter(function(x){ return x.id === userId; })[0];
+      if(!c){
+        c = { id: userId, name: u.name, avatar: u.avatar, messages: [] };
+        connections.push(c);
+      }
+      c.real = true;
+      c.threadId = res.data;
+      switchView('dm', document.getElementById('dmTab'));
+      openDM(c);
+    } catch(err) {
+      alert(dmErrorText(err));
+    }
   }
   function renderMessages(){
     var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
@@ -1562,6 +1650,23 @@
     var text = input.value.trim();
     if(!text || !activeChatId) return;
     var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+    if(c.real){
+      if(text.length > 2000){ alert('メッセージは2000文字までです。'); return; }
+      input.value = '';
+      c.messages.push({ from:'me', text:text });
+      renderMessages();
+      // AIによる送信前チェック(moderate関数)は、Supabase側にANTHROPIC_API_KEYが設定され次第ここに挟む
+      supabaseClient.from('dm_messages').insert({ thread_id: c.threadId, sender_id: myUserId, body: text })
+        .then(function(res){
+          if(res.error){
+            c.messages.pop();
+            renderMessages();
+            input.value = text;
+            alert(dmErrorText(res.error));
+          }
+        });
+      return;
+    }
     c.messages.push({ from:'me', text:text });
     input.value = '';
     renderMessages();
