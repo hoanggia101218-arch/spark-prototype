@@ -84,10 +84,6 @@
     }
     body.dev-mode .dev-panel.open{ display:flex; }
     .demo-btn-row{ flex-direction:column; }
-    .device{
-      aspect-ratio:auto; width:100vw; height:100dvh; max-width:none;
-      border-radius:0; border:none; box-shadow:none;
-    }
   }
 
   /* ---- device ----
@@ -106,6 +102,21 @@
     display:flex; flex-direction:column;
   }
   .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:24px; background:#000; border-radius:0 0 18px 18px; z-index:30; }
+
+  /* 実機(スマホ・タブレット)では、プレビュー用の端末枠を出さず画面いっぱいに使う。
+     この規則は必ず .device の基本定義より「後」に置くこと(先に書くと基本定義に上書きされ、
+     スマホなのに小さい枠付き表示のままになる不具合が実際に起きていた)。
+     タブレットなど広い画面では幅を520pxに抑え、中央に縦長のアプリ列として表示する。 */
+  @media (max-width:480px), (hover:none) and (pointer:coarse){
+    .device{
+      aspect-ratio:auto; width:min(100vw,520px); height:100vh; height:100dvh; max-width:none;
+      border-radius:0; border:none; box-shadow:none;
+    }
+    .notch{ display:none; }
+    .topbar{ padding-top:calc(12px + env(safe-area-inset-top)); }
+  }
+  /* iOS Safariは16px未満の入力欄にフォーカスすると画面が勝手に拡大されるため、入力欄は16px以上にする */
+  input, textarea, select{ font-size:16px; }
 
   .topbar{ padding:22px 18px 8px; display:flex; align-items:center; justify-content:space-between; }
   .brand{ display:flex; align-items:center; gap:7px; }
@@ -965,9 +976,18 @@
       // 実機は390:844ぴったりとは限らないため、縦横どちらか厳しい方に合わせて
       // 中身がはみ出さないようにし、余った分は中央寄せする(レターボックス)
       var s = Math.min(w / 390, h / 844);
+      if(window.matchMedia('(max-width:480px), (hover:none) and (pointer:coarse)').matches){
+        // 実機: 幅に合わせて拡縮し、縦は余白を作らず実際の画面の高さいっぱいに伸ばす
+        s = w / 390;
+        scaleEl.style.height = (h / s) + 'px';
+        scaleEl.style.left = '0px';
+        scaleEl.style.top = '0px';
+      } else {
+        scaleEl.style.height = '844px';
+        scaleEl.style.left = Math.max(0, (w - 390 * s) / 2) + 'px';
+        scaleEl.style.top = Math.max(0, (h - 844 * s) / 2) + 'px';
+      }
       scaleEl.style.zoom = s;
-      scaleEl.style.left = Math.max(0, (w - 390 * s) / 2) + 'px';
-      scaleEl.style.top = Math.max(0, (h - 844 * s) / 2) + 'px';
       currentZoom = s;
     }
     applyScale();
