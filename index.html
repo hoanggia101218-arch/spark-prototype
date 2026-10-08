@@ -188,7 +188,7 @@
   .safety-note{font-size:.7rem;color:var(--ink-faint);border-top:1px solid #ffffff12;margin-top:18px;padding-top:12px;line-height:1.7}
   .menu-list{margin-top:16px}
   .menu-item{display:flex;width:100%;align-items:center;gap:12px;background:#ffffff0d;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:8px;text-align:left}
-  .menu-item .ic{font-size:1.1rem}.menu-item .t{font-family:var(--display);font-weight:700;font-size:.84rem}.menu-item .d{font-size:.66rem;color:var(--ink-muted);margin-top:1px}
+  .menu-item .ic{font-size:1.1rem;display:flex;align-items:center}.ic svg,.ico{width:22px;height:22px;fill:none;stroke:var(--orange);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}.ico.sm{width:16px;height:16px;vertical-align:-3px;margin-right:4px}.ico.fl{fill:var(--orange);stroke:none}.mi{width:46px;height:46px;border-radius:12px;object-fit:cover;flex:none}.fin-img{width:150px;height:150px;border-radius:50%;object-fit:cover;box-shadow:0 0 40px #ff7a1a88;animation:pop .7s ease both}.menu-item .t{font-family:var(--display);font-weight:700;font-size:.84rem}.menu-item .d{font-size:.66rem;color:var(--ink-muted);margin-top:1px}
 
   /* ---- 下部タブ(v2踏襲) ---- */
   .tabbar{position:relative;z-index:20;display:flex;align-items:center;justify-content:space-around;padding:10px 10px calc(14px + env(safe-area-inset-bottom));margin-top:6px;background:var(--orange)}
@@ -294,7 +294,7 @@
   .log div::before{content:'';position:absolute;left:-19px;top:12px;width:8px;height:8px;border-radius:50%;background:var(--orange)}
   .log small{font-family:var(--mono);color:var(--ink-faint);font-size:.58rem;margin-right:6px}
   .fin{align-items:center;text-align:center;justify-content:center;padding:30px}
-  .fin .big{font-size:4rem;animation:pop .7s ease both}
+  .fin .big{font-size:4rem}
   .fin h1{font-size:1.7rem;margin-top:10px}
   .fin p{font-size:.84rem;color:#cfc8c0;margin-top:10px;line-height:1.7}
   @keyframes pop{0%{transform:scale(.2) rotate(-30deg);opacity:0}60%{transform:scale(1.2) rotate(8deg);opacity:1}100%{transform:scale(1) rotate(0)}}
@@ -375,7 +375,7 @@
     <button class="demo-btn" onclick="toggleTips()" id="tipBtn">操作ヒント: ON</button>
     <button class="demo-btn" onclick="resetAll()">最初からやり直す</button>
   </div>
-  <p class="g-foot">登場する人物・投稿・数字はすべてダミーです。登録したアカウントや操作の内容は、この端末のブラウザ内にだけ保存され、サーバーには送信されません(確認メールも送られません)。メッセージの「安全チェック」は画面上の見せ方の確認用で、実際のAI連携はこれから接続します。</p>
+  <p class="g-foot">登場する人物・投稿・数字はすべてダミーです。登録したアカウントや操作の内容は、この端末のブラウザ内にだけ保存され、サーバーには送信されません(確認メールも送られません)。メッセージの「安全チェック」は画面上の見せ方の確認用で、実際のAI連携はこれから接続します。画像は外部の無料生成AI(AI Horde)で作ったイラストで、実在の人物・場所ではありません。</p>
 </aside>
 
 <!-- ============ スマホ ============ -->
@@ -384,7 +384,7 @@
 
   <div class="topbar">
     <div class="brand"><img data-logo alt=""><span class="brand-name">Spark<span class="tag">仮</span></span></div>
-    <button class="streak" onclick="togglePop('streakPop')">🔥 <span id="streakDays">0</span><span class="lbl">日連続</span></button>
+    <button class="streak" onclick="togglePop('streakPop')"><svg class="ico fl sm" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10.2A5 5 0 0 1 12 17.3 5 5 0 0 1 7 12.2c0-1.8.8-3 1.7-4.2.3 1.2 1 2 2 2.3C10.5 7.6 10.6 4.8 12 2z"/></svg><span id="streakDays">0</span><span class="lbl">日連続</span></button>
     <div class="popover" id="streakPop">
       <h4>連続投稿ポイント</h4>
       <p>毎日「やりたいこと」を投稿すると連続日数が伸びます。ポイントはプロフィールのバッジなどと交換できる想定です(お金には交換できません)。</p>
@@ -449,12 +449,13 @@
       <div style="margin-top:20px"><span class="mono-tag">24時間限定</span><p class="note">「やりたいこと」の投稿は24時間で消えます。今の気持ちだけがみんなに見えています。</p></div>
       <div class="eph-grid" id="ephGrid"></div>
       <div class="menu-list">
-        <button class="menu-item" onclick="openOnboard()"><span class="ic">🪪</span><span><div class="t">登録の流れ(デモ)</div><div class="d">年齢 → 電話番号認証 → 保護者の同意(小5〜中学生)→ 興味の選択</div></span></button>
-        <button class="menu-item" onclick="openContact()"><span class="ic">🛡</span><span><div class="t">お問い合わせ・安全の相談</div><div class="d">困ったときはここから</div></span></button>
+        <button class="menu-item" onclick="openOnboard()"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.6 4.4-1.6 5 0M14 10h4M14 13h3"/></svg></span><span><div class="t">登録の流れ(デモ)</div><div class="d">年齢 → 電話番号認証 → 保護者の同意(小5〜中学生)→ 興味の選択</div></span></button>
+        <button class="menu-item" onclick="openContact()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span><span><div class="t">お問い合わせ・安全の相談</div><div class="d">困ったときはここから</div></span></button>
         <button class="menu-item" onclick="resetAll()"><span class="ic">↺</span><span><div class="t">デモ: 最初からやり直す</div><div class="d">投稿・Spark・チームをすべて元に戻します</div></span></button>
         <button class="menu-item" onclick="logout()"><span class="ic">⎋</span><span><div class="t">ログアウト</div><div class="d">アカウントはこの端末に残ります。もう一度ログインできます</div></span></button>
-        <button class="menu-item" onclick="openMentor()"><span class="ic">🎓</span><span><div class="t">メンター(審査済みの大人に相談)</div><div class="d">任意。グループ形式の座談会から</div></span></button>
+        <button class="menu-item" onclick="openMentor()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-4.5M22 9v6"/></svg></span><span><div class="t">メンター(審査済みの大人に相談)</div><div class="d">任意。グループ形式の座談会から</div></span></button>
       </div>
+      <div class="safety-note" style="border-top:none;margin-top:6px;padding-top:0">画像は外部の無料生成AI(AI Horde)で作成したイラストです。実在の人物・場所ではありません。</div>
       <div class="safety-note">安全は、年齢確認、小5〜中学生は保護者の同意と電話番号認証、AIによる投稿(写真を含む)の確認、通報・ブロック、運営の対応で守ります。投稿や行動の責任は、大手SNSと同じく利用規約で利用者が負います(規約は専門家の確認前の案。実装はこれから)。</div>
     </div>
   </div>
@@ -477,8 +478,8 @@
       <div style="font-family:var(--mono);font-size:.6rem;color:var(--mentor);letter-spacing:.06em">任意で使える機能です</div>
       <h3 style="margin-top:6px">メンター(審査済みの大人)</h3>
       <p class="note" style="font-size:.76rem;color:#c9d6d2">参加できる大人は本人確認・審査済み。大人に質問や相談をしたい人向けの、任意の機能です。最初は座談会などのグループ形式から。</p>
-      <div class="mentor-opt" style="margin-top:14px"><span style="font-size:1.4rem">🛠</span><span><div class="t">組み込みエンジニア(サンプル)</div><div class="d">✓ 本人確認済み・ロボット制御の質問会 ／ グループ枠</div></span></div>
-      <div class="mentor-opt"><span style="font-size:1.4rem">💡</span><span><div class="t">学生起業の経験者(サンプル)</div><div class="d">✓ 本人確認済み・アイデアの壁打ち座談会 ／ グループ枠</div></span></div>
+      <div class="mentor-opt" style="margin-top:14px"><img class="mi" src="assets/img/p7.jpg" alt=""><span><div class="t">組み込みエンジニア(サンプル)</div><div class="d">✓ 本人確認済み・ロボット制御の質問会 ／ グループ枠</div></span></div>
+      <div class="mentor-opt"><img class="mi" src="assets/img/p8.jpg" alt=""><span><div class="t">学生起業の経験者(サンプル)</div><div class="d">✓ 本人確認済み・アイデアの壁打ち座談会 ／ グループ枠</div></span></div>
       <p class="note">※ 表示はサンプルです。実在の人物ではありません。</p>
       <button class="cta ghost" style="margin-top:14px" onclick="closeSheets()">とじる</button>
     </div>
@@ -524,9 +525,9 @@
   <!-- DM -->
   <div class="overlay" id="chatOverlay">
     <div class="dm-head"><button class="cam-x" onclick="closeChat()">‹</button><div class="avatar" id="chAvatar"></div><div class="nm"><span id="chName"></span><small id="chBand"></small></div></div>
-    <div class="safety-strip">🛡 住所・電話番号・SNSのIDなどは送らないでください。送信前に安全チェックが入ります(デモ表示)。</div>
+    <div class="safety-strip"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg> 住所・電話番号・SNSのIDなどは送らないでください。送信前に安全チェックが入ります(デモ表示)。</div>
     <div class="dm-messages" id="dmMessages"></div>
-    <div class="team-banner" id="teamBanner"><span style="font-size:1.4rem">👥</span><div class="t"><b>気が合いましたか?</b>一緒に何かを始めたいなら、チームもつくれます(任意)</div><button onclick="openTeamSheet()">チームをつくる</button></div>
+    <div class="team-banner" id="teamBanner"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.6c2.8-.2 5 1.5 5 4.4"/></svg><div class="t"><b>気が合いましたか?</b>一緒に何かを始めたいなら、チームもつくれます(任意)</div><button onclick="openTeamSheet()">チームをつくる</button></div>
     <div class="warn" id="warnBox"><b>送信前チェック</b><span id="warnText"></span></div>
     <div class="quick" id="quick"></div>
     <div class="dm-input-row"><input class="dm-input" id="dmInput" placeholder="メッセージを入力" onkeydown="if(event.key==='Enter')sendDm()"><button class="dm-send" onclick="sendDm()">→</button></div>
@@ -541,7 +542,7 @@
 
   <!-- 活動開始 -->
   <div class="overlay fin" id="finOverlay">
-    <div class="big">🔥</div>
+    <div class="big"><img class="fin-img" src="assets/img/fin.jpg" alt=""></div>
     <h1>活動開始!</h1>
     <p id="finText"></p>
     <div class="log" style="text-align:left;align-self:stretch;margin-top:20px" id="finLog"></div>
@@ -576,9 +577,9 @@
   <div class="overlay" id="contactOverlay" style="z-index:80">
     <div class="ov-top"><button class="cam-x" onclick="closeContact()">✕</button><div class="ov-title" style="text-align:center">お問い合わせ</div><span style="width:34px"></span></div>
     <div class="ov-body">
-      <button class="menu-item" onclick="selectCat(this)"><span class="ic">🛠</span><span><div class="t">開発者へのお問い合わせ</div><div class="d">不具合報告・機能要望など</div></span></button>
-      <button class="menu-item" onclick="selectCat(this)"><span class="ic">🤝</span><span><div class="t">事業・提携のお問い合わせ</div><div class="d">企業協賛・提携・取材など</div></span></button>
-      <button class="menu-item" onclick="selectCat(this)"><span class="ic">🛡</span><span><div class="t">安全に関するご相談・通報</div><div class="d">危険を感じた場合はこちら</div></span></button>
+      <button class="menu-item" onclick="selectCat(this)"><span class="ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5l3 3 5.8-5.8a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.3-.6-.6-2.3z"/></svg></span><span><div class="t">開発者へのお問い合わせ</div><div class="d">不具合報告・機能要望など</div></span></button>
+      <button class="menu-item" onclick="selectCat(this)"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M9 7V5h6v2M3 13h18"/></svg></span><span><div class="t">事業・提携のお問い合わせ</div><div class="d">企業協賛・提携・取材など</div></span></button>
+      <button class="menu-item" onclick="selectCat(this)"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span><span><div class="t">安全に関するご相談・通報</div><div class="d">危険を感じた場合はこちら</div></span></button>
       <div id="contactForm" style="display:none"><div class="field"><input placeholder="返信用メールアドレス"></div><div class="field"><textarea rows="5" placeholder="お問い合わせ内容をご記入ください"></textarea></div><button class="cta" style="margin-top:14px" onclick="toast('送信しました(プロトタイプ・実際には送られません)');closeContact()">送信する</button></div>
     </div>
   </div>
@@ -603,7 +604,7 @@
       <div class="field"><label>メールアドレス</label><input id="auEmail" type="email" placeholder="you@example.com" autocomplete="email" autocapitalize="off"></div>
       <div class="field"><label>パスワード(6文字以上)</label><input id="auPass" type="password" placeholder="••••••" autocomplete="current-password"></div>
       <p class="note" id="auErr" style="color:#ff8a7a;display:none"></p>
-      <div class="demo-box">🧪 <b>デモ版です。</b>確認メールは送られません。入力した内容は<b>この端末のブラウザの中だけ</b>に保存され、どこにも送信されません。本物のメールアドレスを入れなくても試せます(例: test@example.com)。</div>
+      <div class="demo-box"><svg class="ico sm" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3"/><path d="M7.5 15h9"/></svg> <b>デモ版です。</b>確認メールは送られません。入力した内容は<b>この端末のブラウザの中だけ</b>に保存され、どこにも送信されません。本物のメールアドレスを入れなくても試せます(例: test@example.com)。</div>
     </div>
     <div class="ov-bottom"><button class="cta" id="auGo" onclick="authGo()">次へ(年齢の確認へ)</button></div>
   </div>
@@ -639,17 +640,22 @@ const $=id=>document.getElementById(id);
 /* ---------------- データ(すべてダミー) ---------------- */
 const GENRES=['#プログラミング','#ロボット','#AI','#ものづくり','#起業','#デザイン','#ゲーム','#宇宙','#イベント'];
 const BASE_POSTS=[
- {id:'p1',name:'あやと',band:'高校生',genre:'#プログラミング',emoji:'📱',title:'AI家計簿アプリを一緒に作りたい',desc:'企画とUIは自分が担当します。React Nativeが書ける人を探しています。',roles:['アプリ開発','デザイン'],a:'#1b2a44',b:'#0a0d12',avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)',hello:'Sparkありがとう!React Native、少しでも触ったことありますか?',replies:['React Nativeは少しでも大丈夫です。僕もまだ勉強中なので、一緒に覚えましょう。','まず家計簿の画面を3つだけ作るところから始めませんか?','いいですね!次は役割を決めましょう。僕は企画とUIを担当します。']},
- {id:'p2',name:'みお',band:'中学生',genre:'#ロボット',emoji:'🤖',title:'ロボコン用の二足歩行ロボを作っています',desc:'制御プログラムを書ける人、募集中です。Pythonでも大丈夫です。',roles:['制御プログラム','電子工作'],a:'#3a2a6b',b:'#120a16',avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)',hello:'Sparkありがとう!ロボットの制御プログラム、Pythonでも大丈夫ですよ。',replies:['Pythonで十分です!まず足を1本だけ動かすところから試しましょう。','サーボモーターは持っていますか?なければ最初は借りられる方法を探します。','ありがとう!次の週末にオンラインで見せ合いましょう。']},
- {id:'p3',name:'はると',band:'高校生',genre:'#AI',emoji:'🧠',title:'画像生成AIで背景づくりを自動化したい',desc:'同人誌やゲームの背景を作る手間を減らすツールを作りたいです。',roles:['AI・プログラム','企画'],a:'#16402a',b:'#0a140d',avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)',hello:'Sparkありがとう!AIは好きですか?まず何を作るか話しましょう。',replies:['AIは好きです!背景の自動生成は、まず1種類の絵柄から試したいです。','いいですね。使うツールは無料のものから選びましょう。','ありがとう!最初のサンプルを作ってみますね。']},
- {id:'p4',name:'ゆうな',band:'中学生',genre:'#ものづくり',emoji:'🛰',title:'CanSat(模擬人工衛星)コンテストに出たい',desc:'電子工作ができる人、プレゼンが得意な人を探しています。',roles:['電子工作','発表担当'],a:'#0b4a63',b:'#081218',avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)',hello:'Sparkありがとう!CanSat、一緒に出られたらうれしいです。',replies:['CanSat、去年の大会の資料を一緒に読みませんか?','電子工作は初心者でも大丈夫です。センサーを1つだけ動かすところから。','ありがとう!発表の役割分担を決めましょう。']},
- {id:'p5',name:'そら',band:'大学生',genre:'#イベント',emoji:'🎪',title:'中高生向けのものづくりイベントを企画したい',desc:'運営を一緒にやってくれる人を探しています。まずは小さく始めたいです。',roles:['運営','広報'],a:'#5b2a1e',b:'#2a2210',avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)',hello:'Sparkありがとう!まず、どんなイベントにしたいか教えてください。',replies:['中高生向けに、まず10人くらいの小さな集まりを考えています。','広報はSNSで告知するだけから始められます。','ありがとう!企画書のたたき台を作ってみます。']},
- {id:'p6',name:'ゆい',band:'中学生',genre:'#ゲーム',emoji:'🎮',title:'パズルゲームのドット絵を描いてくれる人を探しています',desc:'Unityでパズルゲームを作っています。週2〜3時間の作業から歓迎です。',roles:['ドット絵','デザイン'],a:'#4a1e5b',b:'#150b1c',avatar:'linear-gradient(160deg,#ffb3d9,#e0409a)',hello:'Sparkありがとう!ドット絵、描いたことありますか?初心者でも大歓迎です。',replies:['ドット絵は、最初は16×16の小さな絵で十分です。','週2〜3時間、無理のないペースで大丈夫です。','ありがとう!まず主人公の絵からお願いできますか?']},
- {id:'p7',name:'けんじ(サンプル)',band:'社会人・確認済み',genre:'#ロボット',emoji:'🛠',title:'ロボット制御の質問に答えます(オンライン・30分)',desc:'組み込みの仕事をしています。初心者の質問も歓迎。分からないことから聞いてください。',roles:['質問に答える'],a:'#0f4a45',b:'#081412',avatar:'linear-gradient(160deg,#8fe3c0,#1f9f7c)',adult:true,hello:'Sparkありがとう!どんなロボットを作りたいですか?困っていることから聞かせてください。',replies:['なるほど、まずはモーターの動かし方からですね。マイコンは何を使っていますか?','最初は小さく試すのがおすすめです。1つの動きだけ作ってみましょう。','いい質問です!次の相談日に、いっしょに見てみましょう。']},
- {id:'p8',name:'りく',band:'大学生',genre:'#起業',emoji:'💡',title:'高校生と一緒に、学生起業の小さな座談会を開きたい',desc:'失敗談も含めて話します。まずはオンラインで少人数から始めたいです。',roles:['参加者','運営'],a:'#5a3a0e',b:'#1c1208',avatar:'linear-gradient(160deg,#ffe08a,#e0a020)',hello:'Sparkありがとう!起業って、どんなことに興味がありますか?',replies:['それ、いいですね。まず何人くらいで集まりたいですか?','最初は友だち3人くらいで十分です。気軽にやりましょう。','了解です!日程をいっしょに決めましょう。']},
- {id:'p9',name:'あおい',band:'中学生',genre:'#デザイン',emoji:'🎨',title:'アプリのロゴとアイコンを一緒に考えてくれる人を探しています',desc:'絵が上手でなくても大丈夫。アイデアを出してくれるだけでうれしいです。',roles:['デザイン','アイデア出し'],a:'#5b1e3a',b:'#1a0a12',avatar:'linear-gradient(160deg,#ffc2d9,#e0508a)',hello:'Sparkありがとう!どんな雰囲気のロゴが好きですか?',replies:['かわいい系もかっこいい系も好きです!例を見せ合いましょう。','まず3つ、ラフ案を出してみますね。','ありがとう!次はそれを見て選びましょう。']},
- {id:'p10',name:'かいと',band:'高校生',genre:'#宇宙',emoji:'🔭',title:'天体観測とロケットの仲間をつくりたい',desc:'月や惑星の写真を撮っています。観測の記録を一緒にまとめてくれる人を探しています。',roles:['観測','記録係'],a:'#10204a',b:'#070a14',avatar:'linear-gradient(160deg,#b8c8ff,#4a5ff0)',hello:'Sparkありがとう!天体観測、したことありますか?',replies:['最初はスマホでも月がきれいに撮れますよ。','いいですね!今度の満月の日にやってみましょう。','記録のまとめ方、いっしょに考えましょう。']}
+ {id:'p1',name:'あやと',band:'高校生',genre:'#プログラミング',title:'AI家計簿アプリを一緒に作りたい',desc:'企画とUIは自分が担当します。React Nativeが書ける人を探しています。',roles:['アプリ開発','デザイン'],a:'#1b2a44',b:'#0a0d12',avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)',hello:'Sparkありがとう!React Native、少しでも触ったことありますか?',replies:['React Nativeは少しでも大丈夫です。僕もまだ勉強中なので、一緒に覚えましょう。','まず家計簿の画面を3つだけ作るところから始めませんか?','いいですね!次は役割を決めましょう。僕は企画とUIを担当します。']},
+ {id:'p2',name:'みお',band:'中学生',genre:'#ロボット',title:'ロボコン用の二足歩行ロボを作っています',desc:'制御プログラムを書ける人、募集中です。Pythonでも大丈夫です。',roles:['制御プログラム','電子工作'],a:'#3a2a6b',b:'#120a16',avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)',hello:'Sparkありがとう!ロボットの制御プログラム、Pythonでも大丈夫ですよ。',replies:['Pythonで十分です!まず足を1本だけ動かすところから試しましょう。','サーボモーターは持っていますか?なければ最初は借りられる方法を探します。','ありがとう!次の週末にオンラインで見せ合いましょう。']},
+ {id:'p3',name:'はると',band:'高校生',genre:'#AI',title:'画像生成AIで背景づくりを自動化したい',desc:'同人誌やゲームの背景を作る手間を減らすツールを作りたいです。',roles:['AI・プログラム','企画'],a:'#16402a',b:'#0a140d',avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)',hello:'Sparkありがとう!AIは好きですか?まず何を作るか話しましょう。',replies:['AIは好きです!背景の自動生成は、まず1種類の絵柄から試したいです。','いいですね。使うツールは無料のものから選びましょう。','ありがとう!最初のサンプルを作ってみますね。']},
+ {id:'p4',name:'ゆうな',band:'中学生',genre:'#ものづくり',title:'CanSat(模擬人工衛星)コンテストに出たい',desc:'電子工作ができる人、プレゼンが得意な人を探しています。',roles:['電子工作','発表担当'],a:'#0b4a63',b:'#081218',avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)',hello:'Sparkありがとう!CanSat、一緒に出られたらうれしいです。',replies:['CanSat、去年の大会の資料を一緒に読みませんか?','電子工作は初心者でも大丈夫です。センサーを1つだけ動かすところから。','ありがとう!発表の役割分担を決めましょう。']},
+ {id:'p5',name:'そら',band:'大学生',genre:'#イベント',title:'中高生向けのものづくりイベントを企画したい',desc:'運営を一緒にやってくれる人を探しています。まずは小さく始めたいです。',roles:['運営','広報'],a:'#5b2a1e',b:'#2a2210',avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)',hello:'Sparkありがとう!まず、どんなイベントにしたいか教えてください。',replies:['中高生向けに、まず10人くらいの小さな集まりを考えています。','広報はSNSで告知するだけから始められます。','ありがとう!企画書のたたき台を作ってみます。']},
+ {id:'p6',name:'ゆい',band:'中学生',genre:'#ゲーム',title:'パズルゲームのドット絵を描いてくれる人を探しています',desc:'Unityでパズルゲームを作っています。週2〜3時間の作業から歓迎です。',roles:['ドット絵','デザイン'],a:'#4a1e5b',b:'#150b1c',avatar:'linear-gradient(160deg,#ffb3d9,#e0409a)',hello:'Sparkありがとう!ドット絵、描いたことありますか?初心者でも大歓迎です。',replies:['ドット絵は、最初は16×16の小さな絵で十分です。','週2〜3時間、無理のないペースで大丈夫です。','ありがとう!まず主人公の絵からお願いできますか?']},
+ {id:'p7',name:'けんじ(サンプル)',band:'社会人',genre:'#ロボット',title:'ロボット制御の質問に答えます(オンライン・30分)',desc:'組み込みの仕事をしています。初心者の質問も歓迎。分からないことから聞いてください。',roles:['質問に答える'],a:'#0f4a45',b:'#081412',avatar:'linear-gradient(160deg,#8fe3c0,#1f9f7c)',adult:true,hello:'Sparkありがとう!どんなロボットを作りたいですか?困っていることから聞かせてください。',replies:['なるほど、まずはモーターの動かし方からですね。マイコンは何を使っていますか?','最初は小さく試すのがおすすめです。1つの動きだけ作ってみましょう。','いい質問です!次の相談日に、いっしょに見てみましょう。']},
+ {id:'p8',name:'りく',band:'大学生',genre:'#起業',title:'高校生と一緒に、学生起業の小さな座談会を開きたい',desc:'失敗談も含めて話します。まずはオンラインで少人数から始めたいです。',roles:['参加者','運営'],a:'#5a3a0e',b:'#1c1208',avatar:'linear-gradient(160deg,#ffe08a,#e0a020)',hello:'Sparkありがとう!起業って、どんなことに興味がありますか?',replies:['それ、いいですね。まず何人くらいで集まりたいですか?','最初は友だち3人くらいで十分です。気軽にやりましょう。','了解です!日程をいっしょに決めましょう。']},
+ {id:'p9',name:'あおい',band:'中学生',genre:'#デザイン',title:'アプリのロゴとアイコンを一緒に考えてくれる人を探しています',desc:'絵が上手でなくても大丈夫。アイデアを出してくれるだけでうれしいです。',roles:['デザイン','アイデア出し'],a:'#5b1e3a',b:'#1a0a12',avatar:'linear-gradient(160deg,#ffc2d9,#e0508a)',hello:'Sparkありがとう!どんな雰囲気のロゴが好きですか?',replies:['かわいい系もかっこいい系も好きです!例を見せ合いましょう。','まず3つ、ラフ案を出してみますね。','ありがとう!次はそれを見て選びましょう。']},
+ {id:'p10',name:'かいと',band:'高校生',genre:'#宇宙',title:'天体観測とロケットの仲間をつくりたい',desc:'月や惑星の写真を撮っています。観測の記録を一緒にまとめてくれる人を探しています。',roles:['観測','記録係'],a:'#10204a',b:'#070a14',avatar:'linear-gradient(160deg,#b8c8ff,#4a5ff0)',hello:'Sparkありがとう!天体観測、したことありますか?',replies:['最初はスマホでも月がきれいに撮れますよ。','いいですね!今度の満月の日にやってみましょう。','記録のまとめ方、いっしょに考えましょう。']}
 ];
+BASE_POSTS.forEach(p=>{ p.img='assets/img/'+p.id+'.jpg'; });
+const GENRE_IMG={'#プログラミング':'prog','#ロボット':'p2','#AI':'p3','#ものづくり':'p4','#起業':'p8','#デザイン':'p9','#ゲーム':'p6','#宇宙':'p10','#イベント':'p5'};
+function genreImg(g){ return 'assets/img/'+(GENRE_IMG[g]||'p1')+'.jpg'; }
+function bgImg(p){ return 'url('+p.img+') center/cover,linear-gradient(165deg,'+p.a+','+p.b+')'; }
+const CAM_SVG='<svg class="ico" style="width:44px;height:44px;stroke:#fff8" viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg>';
 let posts, sparked, conns, teams, mine, idx, curTeamId, chatId, st;
 let eligible=true, tipsOn=true, hold=[];
 
@@ -665,7 +671,7 @@ const STEPS=[
 const TIPS=[
  '「やりたいこと」のカードが1枚ずつ出ます。右にスワイプ(または「Sparkする」)で興味を伝えられます。',
  'カードを左右・上にスワイプして探せます。下の「＋」から自分のやりたいことも投稿できます。',
- '「やりたいこと」タブで一覧を見られます。カードの💬や投稿をタップすると詳細が開きます。',
+ '「やりたいこと」タブで一覧を見られます。カードの吹き出しボタンや投稿をタップすると詳細が開きます。',
  '「Sparkする」は「興味あり・話してみたい」の合図です。相手が受け取ってくれるとつながれます。',
  'Sparkを受け取ってもらえました。下の「つながり」で、質問したり話したりしてみましょう。',
  '気が合ったら、一緒に何かを始めることもできます(任意)。「チームをつくる」から。',
@@ -720,10 +726,9 @@ function curPost(){ const list=posts.filter(p=>!hold.includes(p.id)||true); retu
 function renderCard(){
   const p=curPost(), done=sparked.includes(p.id);
   const zone=$('cardZone');
-  zone.innerHTML='<div class="postcard" id="card"><div class="photo" style="background:linear-gradient(165deg,'+p.a+','+p.b+')">'+
+  zone.innerHTML='<div class="postcard" id="card"><div class="photo" style="background:'+bgImg(p)+'">'+
    '<div class="genre-chip">'+p.genre+'</div>'+(p.own?'<div class="own-chip">あなたの投稿・24時間</div>':'')+
    '<div class="swipe-stamp like" id="stLike">興味あり</div><div class="swipe-stamp pass" id="stPass">興味なし</div><div class="swipe-stamp hold" id="stHold">保留</div>'+
-   '<div class="photo-emoji">'+p.emoji+'</div>'+
    '<div class="card-text"><div class="yl">やりたいこと</div><h3>'+esc(p.title)+'</h3>'+(p.desc?'<p>'+esc(p.desc)+'</p>':'')+
    '<div class="roles"><span class="k">募集</span>'+p.roles.map(r=>'<span class="r">'+esc(r)+'</span>').join('')+'</div></div>'+
    '<div class="postmeta"><div class="avatar" style="background:'+p.avatar+'"></div><div class="name">'+esc(p.name)+'<small>'+p.band+'</small></div><span class="sameage">加工なし</span></div>'+
@@ -763,7 +768,7 @@ function bindSwipe(){
 function openDetail(id){
   const p=posts.find(x=>x.id===id), done=sparked.includes(id);
   $('detailSheet').innerHTML='<div class="sheet-grab"></div>'+
-   '<div style="height:96px;border-radius:18px;background:linear-gradient(165deg,'+p.a+','+p.b+');display:flex;align-items:center;justify-content:center;font-size:3rem">'+p.emoji+'</div>'+
+   '<div style="height:150px;border-radius:18px;background:'+bgImg(p)+'"></div>'+
    '<div class="yl" style="margin-top:14px">やりたいこと · '+p.genre+'</div><h3 style="margin-top:4px;line-height:1.4">'+esc(p.title)+'</h3>'+
    '<p class="note" style="font-size:.8rem;color:#d8d1c8">'+esc(p.desc||'')+'</p>'+
    '<div class="sec-h" style="margin-top:14px">募集している役割</div><div class="tags">'+p.roles.map(r=>'<span>'+esc(r)+'</span>').join('')+'</div>'+
@@ -779,7 +784,7 @@ function renderBoard(){
   $('boardChips').innerHTML=gs.map(g=>'<button class="g-chip2'+(g===cur?' sel':'')+'" onclick="renderBoard.f=\''+g+'\';renderBoard()">'+g+'</button>').join('');
   const list=posts.filter(p=>cur==='すべて'||p.genre===cur);
   $('boardList').innerHTML=list.map(p=>{ const d=sparked.includes(p.id);
-    return '<div class="proj" onclick="openDetail(\''+p.id+'\')"><div class="top"><div class="em" style="background:linear-gradient(160deg,'+p.a+','+p.b+')">'+p.emoji+'</div><div style="min-width:0"><h4>'+esc(p.title)+'</h4><p>'+esc(p.desc||'')+'</p></div></div>'+
+    return '<div class="proj" onclick="openDetail(\''+p.id+'\')"><div class="top"><div class="em" style="background:'+bgImg(p)+'"></div><div style="min-width:0"><h4>'+esc(p.title)+'</h4><p>'+esc(p.desc||'')+'</p></div></div>'+
      '<div class="tags">'+p.roles.map(r=>'<span>'+esc(r)+'</span>').join('')+'</div>'+
      '<div class="meta"><div class="who"><div class="avatar" style="background:'+p.avatar+'"></div>'+esc(p.name)+' · '+p.band+'</div><button class="apply'+(d?' done':'')+'" onclick="event.stopPropagation();doSpark(\''+p.id+'\')">'+(d?'Spark済み':'✦ Sparkする')+'</button></div></div>'; }).join('');
 }
@@ -837,8 +842,8 @@ function renderConnect(){
     row.onclick=()=>openTeam(t.id); tl.appendChild(row); });
   const g=$('spGrid'); g.innerHTML='';
   $('spEmpty').style.display=sparked.length?'none':'block';
-  sparked.slice().reverse().forEach(id=>{ const p=posts.find(x=>x.id===id); const d=document.createElement('div'); d.className='sp-thumb'; d.style.background='linear-gradient(165deg,'+p.a+','+p.b+')';
-    d.innerHTML='<span class="em">'+p.emoji+'</span><b>'+esc(p.title)+'</b><small>'+esc(p.name)+' · '+p.band+'</small>'; g.appendChild(d); });
+  sparked.slice().reverse().forEach(id=>{ const p=posts.find(x=>x.id===id); const d=document.createElement('div'); d.className='sp-thumb'; d.style.background='linear-gradient(0deg,#000000c0,#00000020 70%),'+bgImg(p);
+    d.innerHTML='<b>'+esc(p.title)+'</b><small>'+esc(p.name)+' · '+p.band+'</small>'; g.appendChild(d); });
 }
 
 /* ---------------- メッセージ ---------------- */
@@ -899,7 +904,7 @@ function renderTeam(){
     '<div class="members">'+t.members.map(m=>'<div class="member"><div class="avatar" style="background:'+m.avatar+'"></div>'+esc(m.name)+'</div>').join('')+'<div class="member"><div class="avatar" style="background:none;border:2px dashed #ffffff44;display:flex;align-items:center;justify-content:center;color:#888">＋</div>仲間を募集</div></div>'+
     '<div class="tags" style="margin-top:12px">'+t.roles.map(r=>'<span>必要: '+esc(r)+'</span>').join('')+'</div></div>'+
     '<div class="sec-h">はじめの3ステップ</div>'+TASKS.map((x,i)=>'<button class="check'+(t.tasks[i]?' on':'')+'" onclick="toggleTask('+i+')"><span class="bx">✓</span><span><div class="t">'+x[0]+'</div><div class="d">'+x[1]+'</div></span></button>').join('')+
-    '<div class="sec-h">もっと相談したいとき</div><button class="mentor-opt" onclick="openMentor()"><span style="font-size:1.4rem">🎓</span><span><div class="t">メンター(任意)</div><div class="d">審査済みの大人のグループ座談会に参加できます</div></span></button>'+
+    '<div class="sec-h">もっと相談したいとき</div><button class="mentor-opt" onclick="openMentor()"><img class="mi" src="assets/img/p7.jpg" alt=""><span><div class="t">メンター(任意)</div><div class="d">審査済みの大人のグループ座談会に参加できます</div></span></button>'+
     '<div class="sec-h">活動のきろく</div><div class="log">'+t.log.map(l=>'<div><small>'+l.t+'</small>'+esc(l.x)+'</div>').join('')+'</div>';
   const all=t.tasks.every(Boolean), act=t.status==='active';
   $('tdCta').disabled=!all||act; $('tdCta').textContent=act?'活動中':'活動を開始する';
@@ -925,7 +930,7 @@ function closeCamera(){ $('cameraOverlay').classList.remove('open'); }
 function takeShot(){
   const f=$('camFlash'); f.style.transition='none'; f.style.opacity='1'; requestAnimationFrame(()=>{ f.style.transition='opacity .35s'; f.style.opacity='0'; });
   shot=PALETTES[Math.floor(Math.random()*PALETTES.length)];
-  setTimeout(()=>{ $('pvPhoto').style.background='linear-gradient(165deg,'+shot[0]+','+shot[1]+')'; $('pvPhoto').textContent='📷';
+  setTimeout(()=>{ $('pvPhoto').style.background='linear-gradient(165deg,'+shot[0]+','+shot[1]+')'; $('pvPhoto').innerHTML=CAM_SVG;
     $('camStage').style.display='none'; $('previewStage').style.display='flex'; $('pvText').value=''; pvGenre=null; pvUpdate();
     document.querySelectorAll('#genreChips button').forEach(c=>c.classList.remove('sel')); },140);
 }
@@ -933,23 +938,22 @@ function retake(){ $('camStage').style.display='flex'; $('previewStage').style.d
 function pvUpdate(){ const n=$('pvText').value.trim().length; $('pvCount').textContent=$('pvText').value.length; $('postBtn').classList.toggle('ready',n>0&&!!pvGenre); }
 function postShot(){
   const text=$('pvText').value.trim(); if(!text||!pvGenre) return;
-  const emojiMap={'#プログラミング':'💻','#ロボット':'🤖','#AI':'🧠','#ものづくり':'🔧','#起業':'🚀','#デザイン':'🎨','#ゲーム':'🎮','#宇宙':'🛰','#イベント':'🎪'};
-  const p={id:'mine'+Date.now(),own:true,name:(me&&me.name)||'あなた',band:bandOf(me&&me.age),genre:pvGenre,emoji:emojiMap[pvGenre]||'✨',title:text,desc:'',roles:['仲間募集'],a:shot[0],b:shot[1],avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)'};
-  posts.unshift(p); mine.unshift({id:p.id,a:p.a,b:p.b,text}); idx=0;
+  const p={id:'mine'+Date.now(),own:true,name:(me&&me.name)||'あなた',band:bandOf(me&&me.age),genre:pvGenre,img:genreImg(pvGenre),title:text,desc:'',roles:['仲間募集'],a:shot[0],b:shot[1],avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)'};
+  posts.unshift(p); mine.unshift({id:p.id,a:p.a,b:p.b,text,img:p.img}); idx=0;
   $('streakDays').textContent=(parseInt($('streakDays').textContent)||0)+1;
-  toast('投稿しました・24時間表示されます 🔥+1'); setStep(2);
+  toast('投稿しました・24時間表示されます(連続+1日)'); setStep(2);
   setTimeout(()=>{ closeCamera(); switchView('home'); renderCard(); },900);
 }
 function buildGenreChips(){
   const gc=$('genreChips'); gc.innerHTML=GENRES.map(g=>'<button class="g-chip2" data-g="'+g+'">'+g+'</button>').join('');
-  gc.querySelectorAll('button').forEach(b=>b.onclick=()=>{ gc.querySelectorAll('button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); pvGenre=b.dataset.g; pvUpdate(); });
+  gc.querySelectorAll('button').forEach(b=>b.onclick=()=>{ gc.querySelectorAll('button').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); pvGenre=b.dataset.g; $('pvPhoto').style.background='url('+genreImg(pvGenre)+') center/cover,linear-gradient(165deg,'+shot[0]+','+shot[1]+')'; $('pvPhoto').innerHTML=''; pvUpdate(); });
 }
 
 /* ---------------- プロフィール ---------------- */
 function renderProfile(){
   $('stSpark').textContent=sparked.length; $('stConn').textContent=conns.length; $('stTeam').textContent=teams.length;
   $('trustBar').style.width=(30+Math.min(40,teams.length*20+conns.length*5))+'%';
-  const g=$('ephGrid'); g.innerHTML=mine.length?mine.map(m=>'<div class="e-thumb" style="background:linear-gradient(165deg,'+m.a+','+m.b+')"><b>'+esc(m.text)+'</b><span>いま</span></div>').join(''):'<div class="e-empty">まだ投稿がありません。下の「＋」からどうぞ</div>';
+  const g=$('ephGrid'); g.innerHTML=mine.length?mine.map(m=>'<div class="e-thumb" style="background:linear-gradient(#0006,#0006),'+(m.img?'url('+m.img+') center/cover,':'')+'linear-gradient(165deg,'+m.a+','+m.b+')"><b>'+esc(m.text)+'</b><span>いま</span></div>').join(''):'<div class="e-empty">まだ投稿がありません。下の「＋」からどうぞ</div>';
 }
 
 /* ---------------- 登録の流れ / お問い合わせ(v2を踏襲) ---------------- */
@@ -1056,7 +1060,7 @@ window.__goto=function(s){
   if(s==='home'){ setStep(1); }
   if(s==='detail'){ switchView('home'); openDetail('p2'); }
   if(s==='board'){ switchView('board'); }
-  if(s==='post'){ openCamera(); shot=PALETTES[1]; $('pvPhoto').style.background='linear-gradient(165deg,'+shot[0]+','+shot[1]+')'; $('pvPhoto').textContent='📷'; $('camStage').style.display='none'; $('previewStage').style.display='flex'; $('pvText').value='ロボコン用のロボを作りたい。制御プログラムを書ける人を探しています'; pvGenre='#ロボット'; document.querySelectorAll('#genreChips button').forEach(c=>c.classList.toggle('sel',c.dataset.g===pvGenre)); pvUpdate(); setStep(2); }
+  if(s==='post'){ openCamera(); shot=PALETTES[1]; $('pvPhoto').style.background='linear-gradient(165deg,'+shot[0]+','+shot[1]+')'; $('pvPhoto').innerHTML=CAM_SVG; $('camStage').style.display='none'; $('previewStage').style.display='flex'; $('pvText').value='ロボコン用のロボを作りたい。制御プログラムを書ける人を探しています'; pvGenre='#ロボット'; document.querySelectorAll('#genreChips button').forEach(c=>c.classList.toggle('sel',c.dataset.g===pvGenre)); pvUpdate(); setStep(2); }
   if(s==='spark'){ switchView('home'); const p=posts.find(x=>x.id==='p2'); sparked.push('p2'); idx=2; renderCard(); setStep(4); showNotice(p,true); $('connDot').style.display='block'; }
   if(s==='sparkburst'){ switchView('home'); $('burstSub').textContent='「みお」さんに気持ちを伝えました'; $('burst').classList.add('show'); setStep(4); $('burst').querySelector('svg').style.animation='none'; $('burst').querySelector('b').style.animation='none'; }
   if(['dm','team','teamdetail','active','connect'].includes(s)){
