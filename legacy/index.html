@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141414">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23141414'/%3E%3Cpath d='M32 8 L37 27 L56 32 L37 37 L32 56 L27 37 L8 32 L27 27 Z' fill='%23ff7a1a'/%3E%3C/svg%3E">
+<title>Spark Feed Skeleton</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+  :root{
+    --frame:#050505;
+    --bg:#141414;
+    --orange:#ff7a1a;
+    --orange-deep:#e05e05;
+    --orange-soft:#ff7a1a22;
+    --paper:#ffffff;
+    --ink:#181410;
+    --ink-muted:#7a736c;
+    --ink-faint:#b9b2a9;
+    --line:#eee7dd;
+    --display:'Zen Maru Gothic','Hiragino Maru Gothic ProN',sans-serif;
+    --body:'Noto Sans JP','Hiragino Sans',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{ height:100%; }
+  body{
+    background:var(--frame); color:var(--ink); font-family:var(--body);
+    -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    min-height:100svh; padding:28px 14px; overflow:auto;
+  }
+  h1,h2,h3{ font-family:var(--display); }
+  button{ font-family:var(--body); cursor:pointer; }
+
+  .badge-wip{
+    font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+    color:#8a8a8a; border:1px dashed #333; padding:.5em 1em; border-radius:100px;
+  }
+  .demo-toggle{
+    display:flex; align-items:center; gap:10px; background:#1c1c1c; border:1px solid #333; border-radius:100px;
+    padding:6px 6px 6px 14px; font-size:.72rem; color:#cfcfcf;
+  }
+  .demo-toggle .sw{ width:42px; height:24px; border-radius:100px; background:#3a3a3a; position:relative; transition:background .2s; }
+  .demo-toggle .sw i{ position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; }
+  .demo-toggle.on .sw{ background:var(--orange); }
+  .demo-toggle.on .sw i{ transform:translateX(18px); }
+  .demo-btn-row{ display:flex; gap:8px; }
+  .demo-btn{
+    background:#1c1c1c; border:1px solid #333; color:#cfcfcf; font-size:.72rem; font-family:var(--body);
+    padding:.6em 1.1em; border-radius:100px;
+  }
+  .demo-btn:active{ background:#2a2a2a; }
+  /* 検証用パネル(年齢帯プレビュー切替・登録/お問い合わせ画面への直行ボタン)は、
+     本来サーバー側(実際の年齢確認)が決めるべきことをその場で切り替えられてしまう
+     ため、一般ユーザーには絶対に見せてはいけない。既定では非表示にし、
+     URLに ?dev=1 を付けた開発者だけが body.dev-mode 経由で見られるようにする。 */
+  .dev-panel{ display:none; flex-direction:column; align-items:center; gap:16px; }
+  .dev-fab{ display:none; }
+  body.dev-mode .dev-panel{ display:flex; }
+
+  /* 実機(狭い画面)の開発者モードでは、検証用パネルは邪魔にならない小さな歯車ボタンの裏に隠し、
+     本体は画面いっぱいに使う「本物のアプリ」に近い見た目にする。
+     max-width:480pxだけで判定すると、一部の実機ブラウザ(例: Braveなど)で
+     CSS上の論理ビューポート幅が480pxを超えて報告され、スマホなのに枠付きの
+     プレビュー用フレーム(比率がおかしい・小さい)のまま表示されてしまう不具合が
+     実機で確認された。指で操作するタッチ専用デバイス(hover:none/pointer:coarse)
+     であれば、報告される幅に関わらず実機表示を優先するようにする。 */
+  @media (max-width:480px), (hover:none) and (pointer:coarse){
+    body{ padding:0; gap:0; }
+    body.dev-mode .dev-fab{
+      display:flex; align-items:center; justify-content:center;
+      position:fixed; top:14px; right:14px; z-index:200;
+      width:34px; height:34px; border-radius:50%; background:#1c1c1cdd; border:1px solid #444;
+      color:#ccc; font-size:1rem;
+    }
+    body.dev-mode .dev-panel{
+      display:none; position:fixed; top:56px; right:14px; z-index:200; width:min(240px,calc(100vw - 28px));
+      background:#1c1c1cf5; border:1px solid #333; border-radius:16px; padding:14px; gap:10px;
+      box-shadow:0 20px 40px -12px #000a; align-items:stretch;
+    }
+    body.dev-mode .dev-panel.open{ display:flex; }
+    .demo-btn-row{ flex-direction:column; }
+  }
+
+  /* ---- device ----
+     .device は縦横比だけを決める外枠(パネルに合わせて縮む)。
+     中身は常に390x844で組み、device-scaleにzoomを掛けて
+     縮小率をJSで合わせる(固定px中身がはみ出さないようにするため)。
+     transform:scaleだと丸め誤差で下端に隙間が出たため、レイアウト自体を
+     縮小するzoomに変更(誤差が起きない)。 */
+  .device{
+    aspect-ratio:390/844; height:min(844px,88svh); width:auto; max-width:100%; background:var(--bg);
+    border-radius:44px; border:9px solid #000; box-shadow:0 40px 80px -20px #000c, inset 0 0 0 1px #ffffff10;
+    overflow:hidden; position:relative;
+  }
+  .device-scale{
+    width:390px; height:844px; position:absolute; top:0; left:0;
+    display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:24px; background:#000; border-radius:0 0 18px 18px; z-index:30; }
+
+  /* 実機(スマホ・タブレット)では、プレビュー用の端末枠を出さず画面いっぱいに使う。
+     この規則は必ず .device の基本定義より「後」に置くこと(先に書くと基本定義に上書きされ、
+     スマホなのに小さい枠付き表示のままになる不具合が実際に起きていた)。
+     タブレットなど広い画面では幅を520pxに抑え、中央に縦長のアプリ列として表示する。 */
+  @media (max-width:480px), (hover:none) and (pointer:coarse){
+    .device{
+      aspect-ratio:auto; width:min(100vw,520px); height:100vh; height:100dvh; max-width:none;
+      border-radius:0; border:none; box-shadow:none;
+    }
+    .notch{ display:none; }
+    .topbar{ padding-top:calc(12px + env(safe-area-inset-top)); }
+  }
+  /* iOS Safariは16px未満の入力欄にフォーカスすると画面が勝手に拡大されるため、入力欄は16px以上にする */
+  input, textarea, select{ font-size:16px; }
+
+  .topbar{ padding:22px 18px 8px; display:flex; align-items:center; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:7px; }
+  .brand svg{ width:20px; height:20px; display:block; }
+  .brand-name{ font-family:var(--display); font-weight:900; font-size:1rem; color:#fff; }
+  .brand-name .tag{ font-family:var(--mono); font-size:.5rem; color:#777; letter-spacing:.06em; margin-left:.4em; border:1px solid #333; padding:.15em .4em; border-radius:4px; vertical-align:middle; }
+  .streak{
+    display:flex; align-items:baseline; gap:4px; color:var(--orange); font-family:var(--mono); font-size:.78rem; font-weight:600;
+    background:none; border:none;
+  }
+  .streak .streak-label{ font-size:.62rem; color:#a88; margin-left:1px; }
+
+  .popover{
+    position:absolute; top:56px; z-index:40; width:220px; background:#1c1c1c; border:1px solid #333;
+    border-radius:16px; padding:14px; box-shadow:0 20px 40px -12px #000a; display:none;
+  }
+  .popover.open{ display:block; }
+  .popover h4{ font-family:var(--display); font-size:.85rem; color:#fff; margin-bottom:6px; }
+  .popover p{ font-size:.72rem; color:#aaa; line-height:1.6; }
+  .popover .row{ display:flex; justify-content:space-between; font-size:.76rem; color:#ddd; padding:5px 0; border-top:1px solid #2c2c2c; }
+  .popover .row:first-of-type{ border-top:none; }
+  #streakPop{ right:18px; }
+  #morePop{ right:18px; }
+
+  .feed{ flex:1; min-height:0; position:relative; }
+  .view{ position:absolute; inset:0; padding:6px 16px 0; display:none; flex-direction:column; overflow-y:auto; scrollbar-width:none; }
+  .view::-webkit-scrollbar{ display:none; }
+  .view.active{ display:flex; }
+
+  /* ---- card ---- */
+  .card-zone{ position:relative; flex:1; min-height:0; margin-top:6px; }
+  .postcard{
+    position:absolute; inset:0; border-radius:26px; background:var(--orange);
+    padding:6px; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px -14px #00000080;
+    transition:transform .35s ease, opacity .35s ease;
+    touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  }
+  .postcard .photo{
+    position:relative; flex:1; border-radius:20px; overflow:hidden; background:#111820;
+  }
+  .postcard .photo::after{ content:''; position:absolute; inset:0; background:linear-gradient(to top,#000000b0,transparent 45%); }
+  .genre-chip{
+    position:absolute; left:12px; top:12px; z-index:2;
+    background:#fff; color:var(--orange-deep); font-family:var(--display);
+    font-weight:700; font-size:.68rem; padding:.4em .8em; border-radius:100px; white-space:nowrap;
+    max-width:calc(100% - 24px); overflow:hidden; text-overflow:ellipsis;
+  }
+  .postmeta{
+    position:absolute; left:12px; right:12px; bottom:12px; z-index:2;
+    display:flex; align-items:center; gap:8px; min-width:0;
+  }
+  .swipe-stamp{
+    position:absolute; top:20px; z-index:3; font-family:var(--display); font-weight:900; font-size:1.1rem;
+    padding:.35em .8em; border-radius:10px; border:3px solid; opacity:0; pointer-events:none;
+    text-transform:none; letter-spacing:.02em;
+  }
+  .swipe-stamp.like{ left:16px; color:#3ddc74; border-color:#3ddc74; transform:rotate(-14deg); background:#0a1c0f99; }
+  .swipe-stamp.pass{ right:16px; color:#ff5a5a; border-color:#ff5a5a; transform:rotate(14deg); background:#1c0a0a99; }
+  .swipe-stamp.hold{ left:50%; transform:translateX(-50%); color:#ffd23f; border-color:#ffd23f; background:#1c17099; }
+  .swipe-hint{
+    text-align:center; font-family:var(--mono); font-size:.62rem; color:#8a827a; padding:8px 0 4px; letter-spacing:.02em;
+  }
+  .cap-text{
+    position:absolute; left:12px; right:12px; bottom:56px; z-index:2;
+    color:#fff; font-family:var(--display); font-weight:700; font-size:.9rem; line-height:1.6;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+    text-shadow:0 1px 6px #000a; display:none;
+  }
+  .cap-text.show{ display:-webkit-box; }
+  .photo.text-only{
+    display:flex; align-items:center; justify-content:center; padding:28px;
+    background:linear-gradient(160deg,#241a10,#141414) !important;
+  }
+  .photo.text-only .cap-text{
+    position:static; -webkit-line-clamp:none; font-size:1.15rem; text-align:center; text-shadow:none;
+  }
+  .feed-empty{
+    display:none; position:absolute; inset:0; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px 28px; color:#9a9490;
+  }
+  .feed-empty.show{ display:flex; }
+  .feed-empty-icon{ font-size:2rem; }
+  .feed-empty-title{ font-family:var(--display); font-weight:700; font-size:1rem; color:#fff; margin-top:10px; }
+  .feed-empty p{ font-size:.78rem; margin-top:8px; line-height:1.7; }
+
+  .view-title{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:14px; }
+  .view-sub{ font-size:.74rem; color:#9a9490; margin-top:4px; line-height:1.6; }
+  .likes-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; padding-bottom:16px; }
+  .likes-grid .l-thumb{
+    aspect-ratio:1; border-radius:14px; position:relative; display:flex; align-items:flex-end; padding:8px; overflow:hidden;
+  }
+  .likes-grid .l-thumb .l-name{ font-family:var(--display); font-weight:700; font-size:.72rem; color:#fff; }
+  .likes-empty{ display:none; text-align:center; font-size:.78rem; color:#7a736c; margin-top:60px; line-height:1.8; }
+  .likes-empty.show{ display:block; }
+
+  /* ---- DM一覧 ---- */
+  .dm-search{
+    width:100%; margin-top:14px; background:#ffffff0f; border:1px solid #ffffff22; border-radius:100px;
+    padding:.7em 1.1em; color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .dm-search::placeholder{ color:#7a736c; }
+  .dm-note{ font-size:.68rem; color:#7a736c; margin-top:8px; line-height:1.6; }
+  .dm-list{ margin-top:10px; padding-bottom:16px; }
+  .dm-row{
+    display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid #ffffff10;
+  }
+  .dm-row .avatar{ width:44px; height:44px; }
+  .dm-row .dm-meta{ flex:1; min-width:0; }
+  .dm-row .dm-name{ font-family:var(--display); font-weight:700; font-size:.88rem; color:#fff; }
+  .dm-row .dm-last{
+    font-size:.74rem; color:#9a9490; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .dm-empty{ display:none; text-align:center; font-size:.78rem; color:#7a736c; margin-top:60px; line-height:1.8; }
+  .dm-empty.show{ display:block; }
+  .user-search-results{ display:none; margin-top:6px; }
+  .user-search-results.show{ display:block; }
+  .user-search-results .dm-note{ text-align:center; padding:10px 0; }
+
+  /* ---- DMチャット ---- */
+  .dm-chat-overlay{
+    position:absolute; inset:0; z-index:55; background:var(--bg);
+    display:none; flex-direction:column;
+  }
+  .dm-chat-overlay.open{ display:flex; }
+  .dm-chat-top{
+    display:flex; align-items:center; gap:10px; padding:18px; border-bottom:1px solid #ffffff12;
+  }
+  .dm-chat-avatar{ width:34px; height:34px; border-radius:50%; flex:none; }
+  .dm-chat-name{ flex:1; font-family:var(--display); font-weight:700; font-size:.92rem; color:#fff; }
+  .dm-messages{ flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; scrollbar-width:none; }
+  .dm-messages::-webkit-scrollbar{ display:none; }
+  .dm-bubble{
+    max-width:75%; padding:.7em 1em; border-radius:16px; font-size:.82rem; line-height:1.5; word-break:break-word;
+  }
+  .dm-bubble.them{ align-self:flex-start; background:#ffffff14; color:#fff; border-bottom-left-radius:4px; }
+  .dm-bubble.me{ align-self:flex-end; background:var(--orange); color:#20140a; border-bottom-right-radius:4px; }
+  .dm-input-row{ display:flex; gap:8px; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid #ffffff12; }
+  .dm-input{
+    flex:1; min-width:0; background:#ffffff0f; border:1px solid #ffffff22; border-radius:100px;
+    padding:.7em 1.1em; color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .dm-input::placeholder{ color:#7a736c; }
+  .dm-send{
+    width:38px; height:38px; aspect-ratio:1; border-radius:50%; background:var(--orange); color:#20140a;
+    border:none; flex:none; font-size:1rem;
+  }
+
+  /* ---- 登録(オンボーディング) ---- */
+  .onboard-overlay{ position:absolute; inset:0; z-index:80; background:var(--bg); display:none; flex-direction:column; }
+  .onboard-overlay.open{ display:flex; }
+  .onboard-top{ display:flex; align-items:center; gap:10px; padding:18px; }
+  .onboard-steps{ display:flex; gap:5px; flex:1; }
+  .onboard-steps i{ flex:1; height:3px; border-radius:100px; background:#ffffff1a; }
+  .onboard-steps i.done{ background:var(--orange); }
+  .onboard-body{ flex:1; min-height:0; overflow-y:auto; padding:6px 22px 20px; scrollbar-width:none; }
+  .onboard-body::-webkit-scrollbar{ display:none; }
+  .onboard-body h2{ font-size:1.25rem; color:#fff; margin-top:6px; }
+  .onboard-body .sub{ font-size:.78rem; color:#9a9490; margin-top:6px; line-height:1.6; }
+  .age-option{
+    display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px;
+    background:#ffffff0d; border:1.5px solid #ffffff1f; border-radius:16px; padding:14px 16px; color:#fff; text-align:left;
+  }
+  .age-option .t{ font-family:var(--display); font-weight:700; font-size:.9rem; }
+  .age-option .d{ font-size:.68rem; color:#9a9490; margin-top:2px; }
+  .age-option.sel{ border-color:var(--orange); background:#ff7a1a1a; }
+  .consent-box{
+    margin-top:16px; background:#ffffff0d; border:1px solid #ffffff1f; border-radius:16px; padding:16px;
+  }
+  .consent-box label{ font-size:.72rem; color:#9a9490; display:block; margin-bottom:6px; }
+  .consent-box input{
+    width:100%; background:#00000030; border:1px solid #ffffff22; border-radius:10px; padding:.7em .9em;
+    color:#fff; font-size:.82rem; font-family:var(--body);
+  }
+  .consent-box input::placeholder{ color:#7a736c; }
+  .agree-row{ display:flex; align-items:flex-start; gap:10px; margin-top:16px; font-size:.76rem; color:#c9c4bd; line-height:1.6; }
+  .agree-row a{ color:var(--orange); }
+  .onboard-genres{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .onboard-bottom{ padding:16px 22px calc(18px + env(safe-area-inset-bottom)); }
+  .onboard-next{
+    width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
+    font-size:.92rem; padding:.9em; border-radius:100px; opacity:1;
+  }
+  .onboard-next:disabled{ opacity:.35; }
+  .onboard-step{ display:none; }
+  .onboard-step.active{ display:block; }
+
+  /* ---- お問い合わせ ---- */
+  .contact-overlay{ position:absolute; inset:0; z-index:80; background:var(--bg); display:none; flex-direction:column; }
+  .contact-overlay.open{ display:flex; }
+  .contact-body{ flex:1; min-height:0; overflow-y:auto; padding:6px 20px 20px; scrollbar-width:none; }
+  .contact-body::-webkit-scrollbar{ display:none; }
+  .contact-cat{
+    display:flex; align-items:flex-start; gap:12px; width:100%; text-align:left; margin-top:12px;
+    background:#ffffff0d; border:1px solid #ffffff1f; border-radius:16px; padding:14px 16px; color:#fff;
+  }
+  .contact-cat .ic{ font-size:1.2rem; flex:none; }
+  .contact-cat .t{ font-family:var(--display); font-weight:700; font-size:.86rem; }
+  .contact-cat .d{ font-size:.7rem; color:#9a9490; margin-top:3px; line-height:1.5; }
+  .contact-form{ display:none; margin-top:16px; }
+  .contact-form.show{ display:block; }
+  .contact-form textarea, .contact-body textarea{
+    width:100%; min-height:120px; background:#ffffff0d; border:1px solid #ffffff22; border-radius:14px;
+    padding:12px; color:#fff; font-size:.82rem; font-family:var(--body); resize:none; margin-top:10px;
+  }
+  .contact-form input, .contact-body input[type=text]{
+    width:100%; background:#ffffff0d; border:1px solid #ffffff22; border-radius:12px;
+    padding:.8em 1em; color:#fff; font-size:.82rem; font-family:var(--body); margin-top:10px;
+  }
+  .contact-form textarea::placeholder, .contact-body textarea::placeholder,
+  .contact-form input::placeholder, .contact-body input::placeholder{ color:#7a736c; }
+  /* どの画面に置いても確実にテーマに合った見た目になる、汎用の入力欄クラス。
+     祖先要素のクラスに依存するとスタイル漏れが繰り返し起きたため、新規追加する
+     入力欄はこちらを使う。 */
+  .themed-field{
+    width:100%; background:#ffffff0d; border:1px solid #ffffff22; border-radius:12px;
+    padding:.8em 1em; color:#fff; font-size:.82rem; font-family:var(--body); margin-top:10px;
+  }
+  textarea.themed-field{ border-radius:14px; padding:12px; resize:none; }
+  .themed-field::placeholder{ color:#7a736c; }
+  .no-photo-hint{
+    display:none; color:#8a827a; font-family:var(--mono); font-size:.72rem; text-align:center; padding:20px;
+  }
+  .viewfinder.no-photo-active .no-photo-hint{ display:block; }
+  .contact-send{
+    width:100%; background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700;
+    font-size:.9rem; padding:.85em; border-radius:100px; margin-top:14px;
+  }
+  .avatar{ width:36px; height:36px; border-radius:50%; background:linear-gradient(160deg,#ffd08a,#ff7a1a); border:2px solid #fff; flex:none; }
+  .postmeta .name{
+    flex:1 1 auto; min-width:0;
+    font-family:var(--display); font-weight:700; font-size:.95rem; color:#fff;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  .card-actions{ display:flex; align-items:center; gap:10px; padding:10px 4px 2px; }
+  .icon-circle{
+    flex:none; width:48px; height:48px; border-radius:50%; background:#fff; color:var(--orange-deep);
+    border:none; display:flex; align-items:center; justify-content:center; transform:scale(1); transition:transform .12s ease;
+  }
+  .icon-circle:active{ transform:scale(.9); }
+  .icon-circle svg{ width:20px; height:20px; }
+  .pill-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+    background:#20140a; color:#fff; border:none; border-radius:100px; padding:.9em 1em;
+    font-weight:700; font-size:.9rem; transform:scale(1); transition:transform .12s ease, background .15s ease;
+    white-space:nowrap;
+  }
+  .pill-btn:active{ transform:scale(.94); }
+  .pill-btn.follow.following{ background:#00000030; color:#fff2e6; }
+
+  /* ---- profile ---- */
+  .p-headrow{ display:flex; align-items:center; justify-content:space-between; padding-top:8px; }
+  .p-handle{ font-family:var(--mono); font-size:.92rem; color:#fff; font-weight:600; }
+  .dots-btn{
+    background:#ffffff14; border:none; color:#fff; width:34px; height:34px; border-radius:50%; aspect-ratio:1; flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:1.1rem; letter-spacing:1px;
+  }
+  .p-main{ display:flex; align-items:flex-start; gap:12px; margin-top:16px; }
+  .p-avatar{ width:64px; height:64px; border-radius:50%; flex:none; background:linear-gradient(160deg,#ffd08a,#ff7a1a); border:2px solid #fff; }
+  .p-bio{
+    flex:1; min-width:0; background:none; border:1.5px solid var(--orange); border-radius:12px; padding:8px 10px;
+    font-size:.76rem; color:#e6e2da; line-height:1.5;
+  }
+  .p-username{ font-family:var(--display); font-weight:700; font-size:1.05rem; color:#fff; margin-top:10px; }
+  .p-edit-btn{
+    margin-top:12px; background:#ffffff0d; border:1px solid #ffffff2a; color:#fff;
+    font-family:var(--display); font-weight:700; font-size:.76rem; padding:.55em 1.2em; border-radius:100px;
+  }
+  .avatar-pick{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .avatar-swatch{ width:44px; height:44px; border-radius:50%; border:2px solid transparent; flex:none; padding:0; }
+  .avatar-swatch.sel{ border-color:#fff; }
+
+  .p-stats{ display:flex; gap:10px; margin-top:16px; }
+  .p-stat{ flex:1; background:#ffffff0d; border-radius:12px; padding:10px; text-align:center; }
+  .p-stat b{ display:block; font-family:var(--mono); font-size:1.05rem; color:#fff; }
+  .p-stat span{ font-size:.64rem; color:#9a9490; }
+
+  .ephemeral-head{ margin-top:20px; }
+  .mono-tag{
+    font-family:var(--mono); font-size:.65rem; letter-spacing:.08em; color:var(--orange);
+    border:1px solid var(--orange); padding:.3em .7em; border-radius:100px;
+  }
+  .ephemeral-head p{ font-size:.72rem; color:#9a9490; margin-top:6px; line-height:1.6; }
+  .ephemeral-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; padding-bottom:16px; }
+  .e-thumb{
+    aspect-ratio:1; border-radius:14px; position:relative; display:flex; align-items:flex-end; padding:8px;
+  }
+  .e-thumb span{ font-family:var(--mono); font-size:.62rem; color:#fff; background:#00000090; padding:.3em .6em; border-radius:100px; }
+  .e-empty{
+    aspect-ratio:1; border-radius:14px; border:1.5px dashed #444; display:flex; align-items:center; justify-content:center;
+    text-align:center; font-size:.7rem; color:#777; padding:10px;
+  }
+  .e-empty-note{ text-align:center; font-size:.76rem; color:#7a736c; margin-top:24px; line-height:1.8; }
+  .e-thumb.text-only-thumb{ display:flex; align-items:center; justify-content:center; padding:8px; text-align:center; }
+  .e-thumb.text-only-thumb .e-cap{
+    font-family:var(--display); font-weight:700; font-size:.68rem; color:#fff; line-height:1.4;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
+  }
+
+  /* ---- camera ---- */
+  .camera-overlay{
+    position:absolute; inset:0; z-index:50; background:#000;
+    display:none; flex-direction:column;
+  }
+  .camera-overlay.open{ display:flex; }
+  .cam-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:60; }
+  .cam-stage{ flex:1; display:flex; flex-direction:column; padding:18px; min-height:0; }
+  .cam-top{ display:flex; align-items:center; justify-content:space-between; }
+  .cam-x{
+    width:34px; height:34px; aspect-ratio:1; border-radius:50%; background:#ffffff1a; border:none; color:#fff;
+    font-size:1rem; flex:none;
+  }
+  .cam-hint{ font-family:var(--mono); font-size:.68rem; color:#ffffffaa; letter-spacing:.04em; }
+  .viewfinder{
+    flex:1; min-height:0; margin-top:14px; border-radius:24px; overflow:hidden; position:relative;
+    background:radial-gradient(120% 90% at 30% 20%,#2a2f3a,#0a0c10 70%);
+  }
+  .viewfinder video{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  }
+  .vf-grid{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(to right, #ffffff14 1px, transparent 1px),
+      linear-gradient(to bottom, #ffffff14 1px, transparent 1px);
+    background-size:33.33% 33.33%;
+  }
+  .cam-error{
+    display:none; position:absolute; inset:12px auto auto 12px; right:12px; z-index:5;
+    background:#1c1c1cf0; border:1px solid #ff5a5a55; border-radius:14px; padding:12px 14px;
+    font-size:.74rem; color:#ffb3b3; line-height:1.6;
+  }
+  .cam-error.show{ display:block; }
+  .cam-bottom{ display:flex; justify-content:center; align-items:center; padding-top:20px; }
+  .shutter{
+    width:72px; height:72px; aspect-ratio:1; border-radius:50%; background:none; border:4px solid #fff;
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .shutter span{ width:58px; height:58px; border-radius:50%; background:#fff; display:block; transition:transform .1s ease; }
+  .shutter:active span{ transform:scale(.82); }
+
+  .genre-pick{ margin-top:14px; position:relative; }
+  .genre-pick-label{ font-family:var(--mono); font-size:.62rem; color:#8a827a; letter-spacing:.06em; margin-bottom:8px; }
+  .genre-chips{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+  .genre-chips::-webkit-scrollbar{ display:none; }
+  .genre-pick::after{
+    content:''; position:absolute; right:0; top:22px; bottom:4px; width:28px; pointer-events:none;
+    background:linear-gradient(to right, transparent, var(--bg));
+  }
+  .g-chip{
+    flex:none; font-family:var(--display); font-weight:700; font-size:.76rem; color:#fff;
+    background:#ffffff14; border:1.5px solid #ffffff2a; padding:.5em .9em; border-radius:100px; white-space:nowrap;
+  }
+  .g-chip.sel{ background:var(--orange); color:#20140a; border-color:var(--orange); }
+
+  .retake-link{ background:none; border:none; color:#aaa; font-size:.82rem; text-decoration:underline; }
+  .post-btn{
+    background:var(--orange); color:#20140a; border:none; font-family:var(--display); font-weight:700; font-size:.92rem;
+    padding:.85em 1.8em; border-radius:100px; opacity:.4;
+  }
+  .post-btn.ready{ opacity:1; }
+
+  .toast{
+    position:absolute; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); z-index:70;
+    background:#fff; color:#20140a; font-family:var(--display); font-weight:700; font-size:.8rem;
+    padding:.8em 1.2em; border-radius:100px; white-space:nowrap; opacity:0; transition:opacity .25s ease, transform .25s ease;
+    pointer-events:none; /* 非表示中でも当たり判定だけ残ってボタンを覆っていたのを防ぐ */
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---- bottom nav ---- */
+  .tabbar{
+    position:relative; z-index:20; display:flex; align-items:center; justify-content:space-around;
+    padding:10px 10px calc(14px + env(safe-area-inset-bottom)); margin-top:8px;
+    background:var(--orange);
+  }
+  .tab{ background:none; border:none; color:#7a3d10; width:42px; height:42px; aspect-ratio:1; flex:none; padding:0; line-height:0; border-radius:14px; display:flex; align-items:center; justify-content:center; transform:scale(1); transition:transform .12s ease, color .12s ease; position:relative; }
+  .tab:active{ transform:scale(.86); }
+  .tab.active{ color:#20140a; }
+  .tab.active::after{
+    content:''; position:absolute; bottom:-7px; left:50%; transform:translateX(-50%);
+    width:4px; height:4px; border-radius:50%; background:#20140a;
+  }
+  .tab svg{ width:22px; height:22px; }
+  .tab.plus{ width:54px; height:54px; aspect-ratio:1; border-radius:50%; background:#20140a; color:#fff; margin-top:-14px; box-shadow:0 8px 18px -6px #00000080; }
+  .tab.plus svg{ width:24px; height:24px; }
+  .tab.plus:active{ transform:scale(.88); }
+</style>
+</head>
+<body>
+
+<button class="dev-fab" id="devFab" onclick="toggleDevPanel()">⚙</button>
+<div class="dev-panel" id="devPanel">
+  <span class="badge-wip">プロトタイプ・確認用(この上の色は仮名称"Spark"のまま)</span>
+  <div class="demo-toggle" id="demoToggle" onclick="toggleDemo()">
+    <span id="demoLabel">プレビュー相手: 中学生以上(DM解禁)</span>
+    <span class="sw"><i></i></span>
+  </div>
+  <div class="demo-btn-row">
+    <button class="demo-btn" onclick="openOnboard()">登録画面を見る</button>
+    <button class="demo-btn" onclick="openContact()">お問い合わせを見る</button>
+  </div>
+</div>
+
+<div class="device">
+ <div class="device-scale" id="deviceScale">
+  <div class="notch"></div>
+
+  <div class="topbar" style="position:relative;">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 1 L14.5 9 L23 12 L14.5 15 L12 23 L9.5 15 L1 12 L9.5 9 Z" fill="#ff7a1a"/></svg>
+      <span class="brand-name">Spark<span class="tag">仮</span></span>
+    </div>
+    <button class="streak" onclick="togglePop('streakPop')" title="タップで詳細">
+      🔥 <span id="streakDays">12</span><span class="streak-label">日連続</span>
+    </button>
+    <div class="popover" id="streakPop">
+      <h4>連続投稿ポイント</h4>
+      <p>毎日投稿すると連続日数が伸びます。ポイントが貯まると、プロフィールバッジやDiscoverでの表示アップなどと交換できます(お金には交換できません)。</p>
+    </div>
+  </div>
+
+  <div class="feed">
+    <div class="view active" id="view-feed">
+    <div class="card-zone" id="stack">
+      <div class="postcard" id="card">
+        <div class="photo" id="cardPhoto">
+          <div class="genre-chip" id="cardGenre"></div>
+          <div class="cap-text" id="cardCaption"></div>
+          <div class="swipe-stamp like" id="stampLike">興味あり</div>
+          <div class="swipe-stamp pass" id="stampPass">興味なし</div>
+          <div class="swipe-stamp hold" id="stampHold">保留</div>
+          <div class="postmeta" onclick="openOtherProfile(feedQueue[0])" style="cursor:pointer;">
+            <div class="avatar" id="cardAvatar"></div>
+            <div class="name" id="cardName"></div>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="icon-circle" onclick="bump(this); openComments();" title="コメント">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H7l-3 3z"/></svg>
+          </button>
+          <button class="pill-btn follow" id="followBtn" onclick="onFollow(this)">フォロー</button>
+        </div>
+      </div>
+      <div class="feed-empty" id="feedEmpty">
+        <div class="feed-empty-icon">✨</div>
+        <div class="feed-empty-title">まだ投稿がありません</div>
+        <p>最初の投稿をしてみませんか?下の＋ボタンから投稿できます。</p>
+      </div>
+    </div>
+    <p class="swipe-hint">← 興味なし&nbsp;&nbsp;/&nbsp;&nbsp;↑ 保留&nbsp;&nbsp;/&nbsp;&nbsp;興味あり →</p>
+    </div>
+
+    <div class="view" id="view-likes">
+      <div class="view-title">いいねした投稿</div>
+      <p class="view-sub">投稿から24時間経っても、あなたの「興味あり」履歴には残り続けます。</p>
+      <div class="likes-grid" id="likesGrid"></div>
+      <div class="likes-empty" id="likesEmpty">まだ「興味あり」にした投稿がありません。右にスワイプすると、ここに残ります。</div>
+    </div>
+
+    <div class="view" id="view-dm">
+      <div class="view-title">DM</div>
+
+      <div class="view-sub" style="margin-top:14px;">ユーザーを探す</div>
+      <input class="dm-search" id="userSearchInput" placeholder="ユーザー名でほかの登録ユーザーを検索" oninput="searchRealUsers()">
+      <div class="user-search-results" id="userSearchResults"></div>
+
+      <div class="view-sub" style="margin-top:22px;">つながっている相手</div>
+      <input class="dm-search" id="dmSearch" placeholder="つながっている人を検索" oninput="renderDmList()">
+      <p class="dm-note">DMできるのは、お互いフォローし合っていて条件を満たした相手だけです。</p>
+      <div class="dm-list" id="dmList"></div>
+      <div class="dm-empty" id="dmEmpty">まだ誰ともDMできる関係になっていません。ホームでフォローしてつながりましょう。</div>
+    </div>
+
+    <div class="view" id="view-profile" style="position:relative;">
+      <div class="p-headrow">
+        <div class="p-handle" id="pHandle">@spark_user01</div>
+        <button class="dots-btn" onclick="togglePop('morePop')">⋯</button>
+      </div>
+      <div class="popover" id="morePop" style="top:44px;">
+        <div class="row"><span>フォロワー</span><span>128人</span></div>
+        <div class="row"><span>利用開始</span><span>2026年3月</span></div>
+        <div class="row" onclick="reportFromProfile()" style="cursor:pointer;"><span style="color:#ff8a70;">通報する</span><span>›</span></div>
+        <div class="row" onclick="logoutOrSwitchAccount()" style="cursor:pointer;"><span>ログアウト / アカウント切り替え</span><span>›</span></div>
+      </div>
+
+      <div class="p-main">
+        <div class="p-avatar"></div>
+        <div class="p-bio">ロボット作るの好きです。一緒に作ってくれる人募集中!</div>
+      </div>
+      <div class="p-username">ユーザー名</div>
+      <button class="p-edit-btn" onclick="openEditProfile()">プロフィールを編集</button>
+
+      <div class="p-stats">
+        <div class="p-stat"><b id="pPoints">340</b><span>ポイント</span></div>
+        <div class="p-stat"><b>12</b><span>投稿</span></div>
+      </div>
+
+      <div class="ephemeral-head" style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <span class="mono-tag">24時間限定</span>
+          <p>投稿は24時間で消えます。「今」のリアルだけがみんなに見えています。</p>
+        </div>
+        <button class="p-edit-btn" style="margin-top:0; white-space:nowrap;" onclick="openMyPostsArchive()">過去の投稿</button>
+      </div>
+      <div class="ephemeral-grid" id="ephemeralGrid"></div>
+      <p class="e-empty-note" id="ephemeralEmptyNote" style="display:none;">まだ投稿がありません。下の＋ボタンから投稿してみましょう。</p>
+    </div>
+
+    <!-- 過去の投稿(24時間を過ぎたものも含む、自分だけが見られる履歴) -->
+    <div class="contact-overlay" id="myPostsArchiveOverlay">
+      <div class="cam-top" style="padding:18px;">
+        <button class="cam-x" onclick="closeMyPostsArchive()">✕</button>
+        <span class="cam-hint">過去の投稿</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="contact-body">
+        <p class="view-sub">24時間を過ぎた投稿はほかの人には見えなくなりますが、ここではいつでも自分の投稿履歴を確認できます。</p>
+        <div class="ephemeral-grid" id="archiveGrid" style="margin-top:14px;"></div>
+        <p class="e-empty-note" id="archiveEmptyNote" style="display:none;">まだ投稿がありません。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab active" title="ホーム(スワイプで発見)" onclick="switchView('feed', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg>
+    </button>
+    <button class="tab" title="いいねした投稿(24時間制限なし)" onclick="switchView('likes', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.6-10-9.2C.5 8 2.4 4 6.4 4c2 0 3.6 1.2 4.4 2.7C11.6 5.2 13.2 4 15.2 4c4 0 5.9 4 4.4 7.8-2.5 4.6-10 9.2-10 9.2z"/></svg>
+    </button>
+    <button class="tab plus" title="撮影して投稿" onclick="bump(this); openCamera();">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tab" title="DM" id="dmTab" onclick="switchView('dm', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-8.9 8.4 9 9 0 0 1-3.8-.9L3 20l1.1-4.5A8.4 8.4 0 1 1 21 11.5z"/></svg>
+    </button>
+    <button class="tab" title="プロフィール" onclick="switchView('profile', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+    </button>
+  </div>
+
+  <!-- 撮影画面(モーダル・下タブとは別扱い) -->
+  <div class="camera-overlay" id="cameraOverlay">
+    <div class="cam-flash" id="camFlash"></div>
+
+    <div class="cam-stage" id="camStage">
+      <div class="cam-top">
+        <button class="cam-x" onclick="closeCamera()">✕</button>
+        <span class="cam-hint">今の1枚だけ・加工なし</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="viewfinder" id="viewfinder">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div class="vf-grid"></div>
+        <div class="cam-error" id="camError"></div>
+      </div>
+      <canvas id="camCanvas" style="display:none;"></canvas>
+      <div class="cam-bottom" style="flex-direction:column; gap:10px;">
+        <button class="shutter" onclick="takeShot()"><span></span></button>
+        <button type="button" class="retake-link" onclick="skipToTextPost()">写真なしで文章だけ投稿する</button>
+      </div>
+    </div>
+
+    <div class="cam-stage" id="previewStage" style="display:none;">
+      <div class="cam-top">
+        <button class="cam-x" onclick="retake()">✕</button>
+        <span class="cam-hint">プレビュー</span>
+        <span style="width:34px;"></span>
+      </div>
+      <div class="viewfinder" id="previewPhoto"><div class="no-photo-hint" id="noPhotoHint">📝 写真なし・文章のみの投稿</div></div>
+      <textarea id="postCaption" class="themed-field" placeholder="ひとこと(任意・写真なしの場合は入力してください)" oninput="updatePostBtnState()" style="min-height:56px;"></textarea>
+
+      <div class="genre-pick">
+        <div class="genre-pick-label">ジャンルを選ぶ</div>
+        <div class="genre-chips" id="genreChips">
+          <button class="g-chip" data-g="#プログラミング">#プログラミング</button>
+          <button class="g-chip" data-g="#ロボット">#ロボット</button>
+          <button class="g-chip" data-g="#AI">#AI</button>
+          <button class="g-chip" data-g="#ものづくり">#ものづくり</button>
+          <button class="g-chip" data-g="#起業">#起業</button>
+          <button class="g-chip" data-g="#デザイン">#デザイン</button>
+          <button class="g-chip" data-g="#宇宙">#宇宙</button>
+          <button class="g-chip" data-g="#車・EV">#車・EV</button>
+          <button class="g-chip" data-g="#マーケティング">#マーケティング</button>
+          <button class="g-chip" data-g="#経営">#経営</button>
+          <button class="g-chip" data-g="#株・投資">#株・投資</button>
+          <button class="g-chip" data-g="#ビットコイン">#ビットコイン</button>
+          <button class="g-chip" data-g="#政治">#政治</button>
+          <button class="g-chip" data-g="#スタートアップ">#スタートアップ</button>
+          <button class="g-chip" data-g="#Web3">#Web3</button>
+          <button class="g-chip" data-g="#ゲーム開発">#ゲーム開発</button>
+          <button class="g-chip" data-g="#ハードウェア">#ハードウェア</button>
+          <button class="g-chip" data-g="#VR・AR">#VR・AR</button>
+          <button class="g-chip" data-g="#フィンテック">#フィンテック</button>
+          <button class="g-chip" data-g="#サイバーセキュリティ">#サイバーセキュリティ</button>
+          <button class="g-chip" data-g="#教育">#教育</button>
+          <button class="g-chip" data-g="#環境・クリーンテック">#環境・クリーンテック</button>
+          <button class="g-chip" data-g="#eスポーツ">#eスポーツ</button>
+        </div>
+      </div>
+
+      <div class="cam-bottom" style="justify-content:space-between; padding:0 24px;">
+        <button class="retake-link" onclick="retake()">撮り直す</button>
+        <button class="post-btn" id="postBtn" onclick="postShot()">投稿する</button>
+      </div>
+    </div>
+
+    <div class="toast" id="postToast">投稿しました・24時間表示されます 🔥+1</div>
+  </div>
+
+  <!-- DMチャット画面(モーダル) -->
+  <div class="dm-chat-overlay" id="dmChatOverlay">
+    <div class="dm-chat-top">
+      <button class="cam-x" onclick="closeDmChat()">‹</button>
+      <div class="dm-chat-avatar" id="chatAvatar"></div>
+      <div class="dm-chat-name" id="chatName"></div>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="dm-messages" id="dmMessages"></div>
+    <div class="dm-input-row">
+      <input class="dm-input" id="dmInput" placeholder="メッセージを入力" onkeydown="if(event.key==='Enter') sendDm();">
+      <button class="dm-send" onclick="sendDm()">→</button>
+    </div>
+  </div>
+
+  <!-- コメント画面(モーダル) -->
+  <div class="dm-chat-overlay" id="commentOverlay">
+    <div class="dm-chat-top">
+      <button class="cam-x" onclick="closeComments()">‹</button>
+      <div class="dm-chat-name">コメント</div>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="dm-messages" id="commentList"></div>
+    <div class="dm-input-row">
+      <input class="dm-input" id="commentInput" placeholder="コメントを入力" onkeydown="if(event.key==='Enter') sendComment();">
+      <button class="dm-send" onclick="sendComment()">→</button>
+    </div>
+  </div>
+
+  <!-- 利用規約(要約) -->
+  <div class="contact-overlay" id="termsOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeTerms()">✕</button>
+      <span class="cam-hint">利用規約(要約)</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body" style="font-size:.78rem; color:#c9c4bd; line-height:1.9;">
+      <p style="margin-top:12px;">・小学5・6年生は、投稿の閲覧・投稿・コメントのみ利用できます。DM機能は使えません。</p>
+      <p style="margin-top:10px;">・中学生〜17歳は、DM・プロジェクトマッチングも利用できます。マッチング相手は同世代の未成年者に限られます。</p>
+      <p style="margin-top:10px;">・未成年の方が利用する場合、保護者の同意が必要です。</p>
+      <p style="margin-top:10px;">・未成年ユーザーと成人ユーザーは、一般のDM・マッチング機能上で接触することはありません。</p>
+      <p style="margin-top:10px;">・投稿は撮影したその場の1枚・文章のみ・写真と文章の組み合わせのいずれかで、写真は加工できません。投稿から24時間で自動的に非表示になります。</p>
+      <p style="margin-top:10px;">・投稿・DMはAIによる安全チェックを経ます(完全ではありません)。危険な内容(個人情報の要求、金銭要求、性的・暴力的な内容など)が検知された場合、アカウントが一時停止されることがあります。深刻なケースの最終確認には、保護者または信頼できる大人が必ず関わります。</p>
+      <p style="margin-top:10px;">・年齢・氏名を偽っての登録、他者への危険な接触・勧誘、安全機構の回避は禁止です。</p>
+      <p style="margin-top:16px; color:#7a736c; font-size:.7rem;">これはプロトタイプ確認用の要約です。正式版では、弁護士確認済みの全文をここに表示します。(最終更新: 2026-09-04)</p>
+    </div>
+  </div>
+
+  <!-- 新規登録(オンボーディング) -->
+  <div class="onboard-overlay" id="onboardOverlay">
+    <div class="onboard-top">
+      <button class="cam-x" onclick="closeOnboard()">✕</button>
+      <div class="onboard-steps"><i id="obs1"></i><i id="obs2"></i><i id="obs3"></i><i id="obs4"></i><i id="obs5"></i></div>
+      <span style="width:34px;"></span>
+    </div>
+
+    <div class="onboard-body">
+      <div class="onboard-step active" id="obStep1">
+        <h2>年齢を教えてください</h2>
+        <p class="sub">年齢に応じて使える機能が変わります(安全のためのしくみです)</p>
+        <button class="age-option" data-age="elem" onclick="selectAge(this)">
+          <div><div class="t">小学5・6年生</div><div class="d">投稿の閲覧・投稿・コメントのみ</div></div>
+        </button>
+        <button class="age-option" data-age="teen" onclick="selectAge(this)">
+          <div><div class="t">中学生〜17歳</div><div class="d">DM・プロジェクトマッチングも利用可</div></div>
+        </button>
+        <button class="age-option" data-age="adult" onclick="selectAge(this)">
+          <div><div class="t">18歳以上</div><div class="d">保護者同意の制限なし</div></div>
+        </button>
+      </div>
+
+      <div class="onboard-step" id="obStep2">
+        <h2>電話番号認証</h2>
+        <p class="sub">なりすまし防止のため、全員に電話番号認証をお願いしています。SMSで確認コードを送ります。</p>
+        <div class="consent-box">
+          <label>電話番号</label>
+          <input type="tel" inputmode="numeric" id="phoneInput" placeholder="09012345678" oninput="normalizeDigitInput(this); updateNextBtn()">
+        </div>
+        <button class="demo-btn" style="margin-top:10px;" onclick="mockSendCode()">確認コードを送信(デモ)</button>
+        <div class="consent-box" id="codeBox" style="display:none; margin-top:12px;">
+          <label>確認コード(6桁)</label>
+          <input type="text" inputmode="numeric" id="codeInput" placeholder="123456" oninput="normalizeDigitInput(this); updateNextBtn()">
+        </div>
+        <div class="consent-box" style="margin-top:14px;">
+          <label>メールアドレス(ログインに使用します)</label>
+          <input type="email" id="obEmail" class="themed-field" placeholder="you@example.com" oninput="updateNextBtn()">
+        </div>
+        <div class="consent-box" style="margin-top:10px;">
+          <label>パスワード(8文字以上)</label>
+          <input type="password" id="obPassword" class="themed-field" placeholder="8文字以上" oninput="updateNextBtn()">
+        </div>
+        <div class="cam-error" id="obSignupError" style="position:static; display:none; margin-top:12px;"></div>
+      </div>
+
+      <div class="onboard-step" id="obStep3">
+        <h2 id="obStep2Title">保護者の同意が必要です</h2>
+        <p class="sub" id="obStep2Sub">未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。</p>
+        <div class="consent-box" id="consentBox">
+          <label>保護者のメールアドレス</label>
+          <input type="email" id="parentEmailInput" placeholder="parent@example.com" oninput="updateNextBtn()">
+        </div>
+        <div class="agree-row">
+          <input type="checkbox" id="agreeCheck" onchange="updateNextBtn()">
+          <span><a href="#" onclick="event.preventDefault(); openTerms();">利用規約</a>に同意します(未成年の方は保護者の同意も含みます)</span>
+        </div>
+      </div>
+
+      <div class="onboard-step" id="obStep4">
+        <h2>興味のあるジャンルを選んでください</h2>
+        <p class="sub">後からいつでも変更できます</p>
+        <div class="onboard-genres">
+          <button class="g-chip" data-g="#プログラミング" onclick="toggleObGenre(this)">#プログラミング</button>
+          <button class="g-chip" data-g="#ロボット" onclick="toggleObGenre(this)">#ロボット</button>
+          <button class="g-chip" data-g="#AI" onclick="toggleObGenre(this)">#AI</button>
+          <button class="g-chip" data-g="#ものづくり" onclick="toggleObGenre(this)">#ものづくり</button>
+          <button class="g-chip" data-g="#起業" onclick="toggleObGenre(this)">#起業</button>
+          <button class="g-chip" data-g="#デザイン" onclick="toggleObGenre(this)">#デザイン</button>
+          <button class="g-chip" data-g="#宇宙" onclick="toggleObGenre(this)">#宇宙</button>
+          <button class="g-chip" data-g="#車・EV" onclick="toggleObGenre(this)">#車・EV</button>
+          <button class="g-chip" data-g="#マーケティング" onclick="toggleObGenre(this)">#マーケティング</button>
+          <button class="g-chip" data-g="#経営" onclick="toggleObGenre(this)">#経営</button>
+          <button class="g-chip" data-g="#株・投資" onclick="toggleObGenre(this)">#株・投資</button>
+          <button class="g-chip" data-g="#ビットコイン" onclick="toggleObGenre(this)">#ビットコイン</button>
+          <button class="g-chip" data-g="#政治" onclick="toggleObGenre(this)">#政治</button>
+          <button class="g-chip" data-g="#スタートアップ" onclick="toggleObGenre(this)">#スタートアップ</button>
+          <button class="g-chip" data-g="#Web3" onclick="toggleObGenre(this)">#Web3</button>
+          <button class="g-chip" data-g="#ゲーム開発" onclick="toggleObGenre(this)">#ゲーム開発</button>
+          <button class="g-chip" data-g="#ハードウェア" onclick="toggleObGenre(this)">#ハードウェア</button>
+          <button class="g-chip" data-g="#VR・AR" onclick="toggleObGenre(this)">#VR・AR</button>
+          <button class="g-chip" data-g="#フィンテック" onclick="toggleObGenre(this)">#フィンテック</button>
+          <button class="g-chip" data-g="#サイバーセキュリティ" onclick="toggleObGenre(this)">#サイバーセキュリティ</button>
+          <button class="g-chip" data-g="#教育" onclick="toggleObGenre(this)">#教育</button>
+          <button class="g-chip" data-g="#環境・クリーンテック" onclick="toggleObGenre(this)">#環境・クリーンテック</button>
+          <button class="g-chip" data-g="#eスポーツ" onclick="toggleObGenre(this)">#eスポーツ</button>
+        </div>
+      </div>
+
+      <div class="onboard-step" id="obStep5">
+        <h2>最後にプロフィールを作りましょう</h2>
+        <p class="sub">アイコンを追加しますか?自己紹介を追加しますか?ユーザー名は何にしますか?(自己紹介・アイコンは後からでも変更できます)</p>
+        <div class="genre-pick-label" style="margin-top:16px;">アイコン(任意)</div>
+        <div class="avatar-pick" id="obAvatarPick"></div>
+        <button type="button" class="retake-link" style="margin-top:10px;" onclick="openAvatarFilePicker('obAvatarPick')">📷 好きな写真を選ぶ</button>
+        <input type="text" id="obUsername" class="themed-field" placeholder="ユーザー名(必須)" style="margin-top:18px;" oninput="updateNextBtn()">
+        <textarea id="obBio" class="themed-field" placeholder="自己紹介(任意・興味のあること・作っているものなど)" style="min-height:80px;"></textarea>
+      </div>
+    </div>
+
+    <div class="onboard-bottom">
+      <button class="onboard-next" id="obNextBtn" onclick="onboardNext()" disabled>次へ</button>
+    </div>
+  </div>
+
+  <!-- お問い合わせ -->
+  <div class="contact-overlay" id="contactOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeContact()">✕</button>
+      <span class="cam-hint">お問い合わせ</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body">
+      <button class="contact-cat" onclick="selectContactCat(this,'dev')">
+        <div class="ic">🛠</div>
+        <div><div class="t">開発者へのお問い合わせ</div><div class="d">不具合報告・機能要望など</div></div>
+      </button>
+      <button class="contact-cat" onclick="selectContactCat(this,'biz')">
+        <div class="ic">🤝</div>
+        <div><div class="t">事業・提携のお問い合わせ</div><div class="d">企業協賛・提携・取材など</div></div>
+      </button>
+      <button class="contact-cat" onclick="selectContactCat(this,'safety')">
+        <div class="ic">🛡</div>
+        <div><div class="t">安全に関するご相談・通報</div><div class="d">危険を感じた場合はこちら(担当者が確認します)</div></div>
+      </button>
+
+      <div class="contact-form" id="contactForm">
+        <input type="text" id="contactName" placeholder="お名前(任意)">
+        <input type="email" id="contactEmail" placeholder="返信用メールアドレス">
+        <textarea id="contactMsg" placeholder="お問い合わせ内容をご記入ください"></textarea>
+        <button class="contact-send" onclick="sendContact()">送信する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プロフィール編集 -->
+  <div class="contact-overlay" id="editProfileOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeEditProfile()">✕</button>
+      <span class="cam-hint">プロフィールを編集</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body">
+      <div class="genre-pick-label" style="margin-top:6px;">アイコン</div>
+      <div class="avatar-pick" id="avatarPick"></div>
+      <button type="button" class="retake-link" style="margin-top:10px;" onclick="openAvatarFilePicker('avatarPick')">📷 好きな写真を選ぶ</button>
+      <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="onAvatarFileSelected(event)">
+      <input type="text" id="editUsername" placeholder="ユーザー名" style="margin-top:18px;">
+      <textarea id="editBio" placeholder="自己紹介(興味のあること・作っているものなど)" style="min-height:90px;"></textarea>
+      <button class="contact-send" onclick="saveProfile()">保存する</button>
+    </div>
+  </div>
+
+  <!-- 他ユーザーのプロフィール(閲覧のみ) -->
+  <div class="contact-overlay" id="otherProfileOverlay">
+    <div class="cam-top" style="padding:18px;">
+      <button class="cam-x" onclick="closeOtherProfile()">✕</button>
+      <span class="cam-hint">プロフィール</span>
+      <span style="width:34px;"></span>
+    </div>
+    <div class="contact-body" style="text-align:center; padding-top:24px;">
+      <div class="p-avatar" id="otherAvatar" style="width:88px; height:88px; margin:0 auto;"></div>
+      <div class="p-username" id="otherName" style="margin-top:14px;"></div>
+      <span class="mono-tag" id="otherGenre" style="margin-top:10px; display:inline-block;"></span>
+      <p style="font-size:.76rem; color:#9a9490; margin-top:16px; line-height:1.6;">興味が合いそうだと思ったら、フォローしてつながりましょう。</p>
+      <button class="pill-btn follow" id="otherFollowBtn" style="width:100%; margin-top:22px;"></button>
+      <button class="pill-btn follow" id="otherDmBtn" style="width:100%; margin-top:22px; display:none;">メッセージを送る</button>
+    </div>
+  </div>
+ </div>
+</div>
+
+<script>
+  // 検証用パネルは、URLに ?dev=1 を付けた開発者だけに見せる。
+  // 一般ユーザーが本来サーバー側の年齢確認で決まるはずの状態を自分で切り替えられて
+  // しまうのを防ぐため、既定では絶対に表示しない(CSS側もbody.dev-mode前提にしてある)。
+  if(/(^|[?&])dev=1(&|$)/.test(location.search)){
+    document.body.classList.add('dev-mode');
+  }
+
+  // 本物のSupabaseバックエンドへの接続。まずは「アカウント作成(メール+生年月日)」と
+  // 「登録ユーザーの検索」だけを本物のデータベースに繋ぐ(投稿本体・DMの実データ連携は
+  // 写真の保存先(Supabase Storage)の準備が別途必要なため、次の段階で対応する)。
+  var SUPABASE_URL = 'https://ianjrwmpgtmpnbowuomj.supabase.co';
+  var SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lPvsT1jyk0D1ElEHU5rpLQ_c7pRA4tw';
+  var supabaseClient = (typeof supabase !== 'undefined')
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+    : null;
+
+  // device(枠)の実際の表示幅に合わせて、390px設計の中身を縮小する
+  var currentZoom = 1; // ドラッグ量の補正に使う(縮小表示でもスワイプ感度を合わせるため)
+  (function(){
+    var deviceEl = document.querySelector('.device');
+    var scaleEl = document.getElementById('deviceScale');
+    function applyScale(){
+      var w = deviceEl.clientWidth, h = deviceEl.clientHeight;
+      // 実機は390:844ぴったりとは限らないため、縦横どちらか厳しい方に合わせて
+      // 中身がはみ出さないようにし、余った分は中央寄せする(レターボックス)
+      var s = Math.min(w / 390, h / 844);
+      if(window.matchMedia('(max-width:480px), (hover:none) and (pointer:coarse)').matches){
+        // 実機: 幅に合わせて拡縮し、縦は余白を作らず実際の画面の高さいっぱいに伸ばす
+        s = w / 390;
+        scaleEl.style.height = (h / s) + 'px';
+        scaleEl.style.left = '0px';
+        scaleEl.style.top = '0px';
+      } else {
+        scaleEl.style.height = '844px';
+        scaleEl.style.left = Math.max(0, (w - 390 * s) / 2) + 'px';
+        scaleEl.style.top = Math.max(0, (h - 844 * s) / 2) + 'px';
+      }
+      scaleEl.style.zoom = s;
+      currentZoom = s;
+    }
+    applyScale();
+    window.addEventListener('resize', applyScale);
+    if(window.ResizeObserver){ new ResizeObserver(applyScale).observe(deviceEl); }
+  })();
+
+  var eligible = true; // demo toggle state: true = 相手が中学生以上(DM解禁), false = 小5-6年生(DM不可)
+
+  // 登録時に選んだ自分の年齢層('elem'|'teen'|'adult')。以前は登録画面で選んでも
+  // 登録後どこにも使われておらず、小学5・6年生として登録してもDMタブが普通に
+  // 開けてしまう(仕様上あってはならない)バグがあった。localStorageにも保存し、
+  // 一度登録した端末を閉じて開き直しても制限が外れないようにする。
+  var myAgeTier = null;
+  var myUserId = null; // 実際のusersテーブルの行id(supabase auth.uid())。登録完了時に確定する。
+  try {
+    myAgeTier = localStorage.getItem('spark_age_tier');
+    myUserId = localStorage.getItem('spark_user_id');
+  } catch(e){}
+
+  function applyAgeTierUI(){
+    var dmTab = document.getElementById('dmTab');
+    var isElem = myAgeTier === 'elem';
+    dmTab.style.display = isElem ? 'none' : '';
+    dmTab.disabled = isElem;
+  }
+  applyAgeTierUI();
+
+  function switchView(name, btn){
+    if(name === 'dm' && myAgeTier === 'elem') return; // 小学5・6年生はDM機能自体を持たない
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+    btn.classList.add('active');
+    closeAllPops();
+    if(name === 'likes') renderLikes();
+    if(name === 'dm'){ renderDmList(); loadRealThreads(); }
+  }
+
+  function togglePop(id){
+    var el = document.getElementById(id);
+    var wasOpen = el.classList.contains('open');
+    closeAllPops();
+    if(!wasOpen) el.classList.add('open');
+  }
+  function closeAllPops(){
+    document.querySelectorAll('.popover').forEach(function(p){ p.classList.remove('open'); });
+  }
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.popover') && !e.target.closest('.streak') && !e.target.closest('.dots-btn')){
+      closeAllPops();
+    }
+  });
+
+  // 1枚のカードだけをDOMに置き、内容をJSで差し替える方式(重なりバグを構造的に無くすため)
+  // 投稿はすべて24時間で消える設定という想定(ここではダミーで循環表示)
+  //
+  // サンプルのダミー投稿(あやと・みお…)は、あくまで開発者がデザインを確認するための
+  // ものであり、実際の訪問者に「他にもユーザーがいるように見せる」ための偽の賑わいを
+  // 見せるべきではない。そのため一般公開時(?dev=1が無い場合)はposts配列を空から始める。
+  var HOUR_MS = 60 * 60 * 1000;
+  var now0 = Date.now();
+  var DEMO_SEED_POSTS = [
+    { id:'p1', name:'あやと', genre:'#プログラミング', avatar:'linear-gradient(160deg,#ffd08a,#ff7a1a)', a:'#111820', b:'#0a0d12', createdAt: now0 - 2 * HOUR_MS },
+    { id:'p2', name:'みお',   genre:'#ロボット',      avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)', a:'#241226', b:'#120a16', createdAt: now0 - 5 * HOUR_MS },
+    { id:'p3', name:'はると', genre:'#AI',           avatar:'linear-gradient(160deg,#9dffb0,#1fbf5c)', a:'#132318', b:'#0a140d', createdAt: now0 - 9 * HOUR_MS },
+    { id:'p4', name:'ゆうな', genre:'#ものづくり',    avatar:'linear-gradient(160deg,#a6e6ff,#3f9ff0)', a:'#0e2430', b:'#081218', createdAt: now0 - 14 * HOUR_MS },
+    { id:'p5', name:'そら',   genre:'#起業',          avatar:'linear-gradient(160deg,#ffe08a,#f0a63f)', a:'#2a2210', b:'#161006', createdAt: now0 - 20 * HOUR_MS }
+  ];
+  var posts = document.body.classList.contains('dev-mode') ? DEMO_SEED_POSTS.slice() : [];
+  var likedPosts = []; // 「興味あり」履歴。24時間制限を受けず、ここに残り続ける想定(投稿自体が消えても手元には残る)
+
+  // 投稿から24時間以内かどうか。フィードは24時間以内の投稿だけを対象にする
+  // (ストーリーのような一時性)。likedPostsは別枠でこの制限を受けない。
+  function isWithin24h(p){
+    return typeof p.createdAt !== 'number' || (Date.now() - p.createdAt) < 24 * HOUR_MS;
+  }
+  function formatElapsed(createdAt){
+    var mins = Math.floor((Date.now() - createdAt) / 60000);
+    if(mins < 1) return 'たった今';
+    if(mins < 60) return mins + '分前';
+    var hrs = Math.floor(mins / 60);
+    if(hrs < 24) return hrs + '時間前';
+    return Math.floor(hrs / 24) + '日前';
+  }
+
+  // フォロー状態は投稿者(post.id)ごとに永続させる。以前は毎回renderCard()で
+  // ボタン表示を強制的に「フォロー」へ戻していたため、一度フォローした相手でも
+  // カードを何枚か見て戻ってくるとフォロー状態が消えて見えるバグがあった。
+  var followState = {}; // postId -> 'following' | 'dm' (無ければ未フォロー)
+
+  var realUserCache = {}; // 実際の検索結果をキャッシュ(userId -> 表示用オブジェクト)。プロフィール表示に使う。
+  function findPost(id){
+    for(var i = 0; i < posts.length; i++){ if(posts[i].id === id) return posts[i]; }
+    if(realUserCache[id]) return realUserCache[id];
+    return null;
+  }
+
+  // ---- 登録ユーザー検索(本物のバックエンド) ----
+  var userSearchTimer = null;
+  function searchRealUsers(){
+    clearTimeout(userSearchTimer);
+    var q = document.getElementById('userSearchInput').value.trim();
+    var box = document.getElementById('userSearchResults');
+    if(!q){ box.classList.remove('show'); box.innerHTML = ''; return; }
+    box.classList.add('show');
+    userSearchTimer = setTimeout(function(){ runUserSearch(q); }, 300);
+  }
+
+  async function runUserSearch(q){
+    var box = document.getElementById('userSearchResults');
+    box.innerHTML = '';
+    var loading = document.createElement('div');
+    loading.className = 'dm-note';
+    loading.textContent = '検索中…';
+    box.appendChild(loading);
+
+    if(!supabaseClient){
+      box.innerHTML = '';
+      var errEl = document.createElement('div');
+      errEl.className = 'dm-note';
+      errEl.textContent = 'バックエンドに接続できませんでした。';
+      box.appendChild(errEl);
+      return;
+    }
+
+    try {
+      var res = await supabaseClient.rpc('search_users', { query: q });
+      if(res.error) throw res.error;
+      var rows = (res.data || []).filter(function(u){ return u.id !== myUserId; });
+      box.innerHTML = '';
+      if(rows.length === 0){
+        var empty = document.createElement('div');
+        empty.className = 'dm-note';
+        empty.textContent = '「' + q + '」に一致する登録ユーザーが見つかりませんでした。';
+        box.appendChild(empty);
+        return;
+      }
+      rows.forEach(function(u){
+        realUserCache[u.id] = {
+          id: u.id, name: u.display_name, genre: '',
+          avatar: u.avatar || 'linear-gradient(160deg,#ffd08a,#ff7a1a)'
+        };
+        var row = document.createElement('div');
+        row.className = 'dm-row';
+        var avatarDiv = document.createElement('div');
+        avatarDiv.className = 'avatar';
+        avatarDiv.style.background = realUserCache[u.id].avatar;
+        var metaDiv = document.createElement('div');
+        metaDiv.className = 'dm-meta';
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'dm-name';
+        nameDiv.textContent = u.display_name;
+        var lastDiv = document.createElement('div');
+        lastDiv.className = 'dm-last';
+        lastDiv.textContent = u.bio || '自己紹介はまだありません';
+        metaDiv.appendChild(nameDiv);
+        metaDiv.appendChild(lastDiv);
+        row.appendChild(avatarDiv);
+        row.appendChild(metaDiv);
+        row.addEventListener('click', function(){ openOtherProfile(u.id); });
+        box.appendChild(row);
+      });
+    } catch(err) {
+      box.innerHTML = '';
+      var errBox = document.createElement('div');
+      errBox.className = 'dm-note';
+      errBox.textContent = '検索に失敗しました: ' + (err && err.message ? err.message : '不明なエラー');
+      box.appendChild(errBox);
+    }
+  }
+
+  // ---- スワイプ用フィードの並び ----
+  // 「興味あり」「興味なし」と判定した投稿は二度とスクロール欄に出さない。
+  // 「保留」は先送りにするだけで、また後で出てくる。自分自身の投稿(mine:true)は
+  // そもそもフィードには含めない(自分にフォロー/DMできてしまうバグを防ぐため)。
+  // 好きなジャンル(興味ありを押した回数が多いジャンル)を優先しつつ、
+  // 単調にならないよう3件に1件は別のジャンルも混ぜる。
+  var feedQueue = [];
+  var passedIds = {};    // postId -> true (興味なし済み)
+  var likedPostIds = {}; // postId -> true (興味あり済み)
+  var likedGenreCounts = {}; // genre -> 興味ありを押した回数
+
+  function shuffleArray(arr){
+    for(var i = arr.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildFeedQueue(){
+    var candidates = posts.filter(function(p){
+      return !p.mine && !passedIds[p.id] && !likedPostIds[p.id] && isWithin24h(p);
+    });
+    var preferred = shuffleArray(candidates.filter(function(p){ return (likedGenreCounts[p.genre] || 0) > 0; }));
+    var others = shuffleArray(candidates.filter(function(p){ return !(likedGenreCounts[p.genre] || 0); }));
+    var queue = [];
+    var pi = 0, oi = 0;
+    while(pi < preferred.length || oi < others.length){
+      for(var k = 0; k < 3 && pi < preferred.length; k++){ queue.push(preferred[pi++].id); }
+      if(oi < others.length){ queue.push(others[oi++].id); }
+    }
+    return queue;
+  }
+  feedQueue = buildFeedQueue();
+
+  function applyFollowButtonState(btn, postId){
+    var state = followState[postId];
+    btn.classList.remove('following');
+    if(state === 'dm'){ btn.textContent = 'DM'; }
+    else if(state === 'following'){ btn.textContent = 'フォロー中'; btn.classList.add('following'); }
+    else { btn.textContent = 'フォロー'; }
+  }
+
+  function onFollow(postId, btn){
+    bump(btn);
+    var p = findPost(postId);
+    var state = followState[postId];
+    // 自分が小学5・6年生(myAgeTier==='elem')の場合、相手が誰であってもDMには絶対にならない。
+    // 以前はここが自分の年齢層を見ておらず、小学生として登録してもDMが解禁できてしまっていた。
+    var dmPossible = eligible && myAgeTier !== 'elem';
+    if(dmPossible){
+      if(state === 'dm'){ openDM(p); return; }
+      followState[postId] = 'dm';
+      addConnection(p); // フォロー成立(DM解禁)した相手を接続リストに追加
+    } else {
+      if(state === 'following'){ delete followState[postId]; } // フォロー解除(誤タップの取り消し)
+      else { followState[postId] = 'following'; }
+      // DMボタンには絶対に変わらない(小5・6年生は仕様上DM機能自体を持たない)
+    }
+    refreshFollowButtons();
+  }
+
+  function refreshFollowButtons(){
+    if(feedQueue.length){
+      applyFollowButtonState(document.getElementById('followBtn'), feedQueue[0]);
+    }
+    if(currentOtherProfileId && document.getElementById('otherProfileOverlay').classList.contains('open')){
+      applyFollowButtonState(document.getElementById('otherFollowBtn'), currentOtherProfileId);
+    }
+  }
+
+  function renderCard(){
+    var card = document.getElementById('card');
+    var empty = document.getElementById('feedEmpty');
+    if(feedQueue.length === 0){
+      card.style.display = 'none';
+      empty.classList.add('show');
+      return;
+    }
+    card.style.display = 'flex';
+    empty.classList.remove('show');
+    var p = findPost(feedQueue[0]);
+    var photoEl = document.getElementById('cardPhoto');
+    var capEl = document.getElementById('cardCaption');
+    if(p.photo){
+      photoEl.classList.remove('text-only');
+      photoEl.style.background = 'url(' + p.photo + ') center/cover no-repeat';
+    } else if(p.caption){
+      // 写真なし・文章のみの投稿
+      photoEl.classList.add('text-only');
+      photoEl.style.background = '';
+    } else {
+      photoEl.classList.remove('text-only');
+      photoEl.style.background = 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+    }
+    if(p.caption){
+      capEl.textContent = p.caption;
+      capEl.classList.add('show');
+    } else {
+      capEl.textContent = '';
+      capEl.classList.remove('show');
+    }
+    document.getElementById('cardAvatar').style.background = p.avatar;
+    document.getElementById('cardName').textContent = p.name;
+    document.getElementById('cardGenre').textContent = p.genre;
+    var btn = document.getElementById('followBtn');
+    btn.onclick = function(){ onFollow(p.id, btn); };
+    applyFollowButtonState(btn, p.id);
+    ['stampLike','stampPass','stampHold'].forEach(function(id){ document.getElementById(id).style.opacity = 0; });
+  }
+  renderCard();
+
+  // ---- 他ユーザーのプロフィール(閲覧のみ) ----
+  var currentOtherProfileId = null;
+  function openOtherProfile(postId){
+    var p = findPost(postId);
+    if(!p) return;
+    currentOtherProfileId = postId;
+    document.getElementById('otherAvatar').style.background = p.avatar;
+    document.getElementById('otherName').textContent = p.name;
+    var genreEl = document.getElementById('otherGenre');
+    genreEl.textContent = p.genre || '';
+    genreEl.style.display = p.genre ? '' : 'none';
+    var btn = document.getElementById('otherFollowBtn');
+    btn.onclick = function(){ onFollow(postId, btn); };
+    applyFollowButtonState(btn, postId);
+    // 実在の登録ユーザー(検索結果)にはフォロー→DM解禁の仮フローではなく、本物のDM開始ボタンを出す
+    var isReal = !!realUserCache[postId] && !posts.some(function(x){ return x.id === postId; });
+    var dmBtn = document.getElementById('otherDmBtn');
+    btn.style.display = isReal ? 'none' : '';
+    dmBtn.style.display = (isReal && myAgeTier !== 'elem') ? '' : 'none';
+    dmBtn.onclick = function(){ closeOtherProfile(); openRealDM(postId); };
+    document.getElementById('otherProfileOverlay').classList.add('open');
+  }
+  function closeOtherProfile(){
+    document.getElementById('otherProfileOverlay').classList.remove('open');
+    currentOtherProfileId = null;
+  }
+
+  // ---- 半角/全角どちらで打っても通る数字入力の補正 ----
+  // 電話番号・確認コードは日本語キーボードだと全角数字で打たれることが多いため、
+  // 半角しか受け付けないと「打ったのに進めない」バグに見える。入力の都度、
+  // 全角数字を半角へ変換して表示自体も揃える。
+  function toHalfWidthDigits(str){
+    return String(str).replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  }
+  function normalizeDigitInput(el){
+    var v = toHalfWidthDigits(el.value);
+    if(v !== el.value) el.value = v;
+  }
+
+  // ---- 自分のプロフィール(ユーザー名・自己紹介・アイコン) ----
+  // 登録時のプロフィール作成ステップと、後からの「プロフィールを編集」画面の
+  // どちらからも同じアバター選択UIを使い回すため、renderAvatarPicker()は
+  // avatarPickerTargetが指す入れ物(avatarPick または obAvatarPick)へ描画する。
+  var myProfile = { username: '', bio: '', avatar: 'linear-gradient(160deg,#ffd08a,#ff7a1a)' };
+  var avatarPalette = [
+    'linear-gradient(160deg,#ffd08a,#ff7a1a)', 'linear-gradient(160deg,#c9a6ff,#7a3ff0)',
+    'linear-gradient(160deg,#9dffb0,#1fbf5c)', 'linear-gradient(160deg,#a6e6ff,#3f9ff0)',
+    'linear-gradient(160deg,#ffe08a,#f0a63f)', 'linear-gradient(160deg,#ff9ab0,#e0356b)'
+  ];
+  var pendingAvatar = null;
+  var avatarPickerTarget = 'avatarPick';
+
+  function renderMyProfile(){
+    var view = document.getElementById('view-profile');
+    view.querySelector('.p-username').textContent = myProfile.username;
+    view.querySelector('.p-bio').textContent = myProfile.bio;
+    view.querySelector('.p-avatar').style.background = myProfile.avatar;
+    document.getElementById('pHandle').textContent = myUserId ? '@user_' + myUserId.slice(0, 8) : '@未登録(開発者プレビュー)';
+    renderEphemeralGrid();
+  }
+  renderMyProfile();
+
+  // 自分の投稿を1枚分のサムネイルとして作る(24時間限定欄・過去の投稿アーカイブ共通)
+  function buildPostThumb(p){
+    var d = document.createElement('div');
+    d.className = 'e-thumb';
+    if(p.photo){
+      d.style.background = 'url(' + p.photo + ') center/cover no-repeat';
+    } else {
+      d.classList.add('text-only-thumb');
+      d.style.background = 'linear-gradient(160deg,#241a10,#141414)';
+      var capSpan = document.createElement('span');
+      capSpan.className = 'e-cap';
+      capSpan.textContent = p.caption || '';
+      d.appendChild(capSpan);
+    }
+    var timeSpan = document.createElement('span');
+    timeSpan.textContent = formatElapsed(p.createdAt || Date.now());
+    d.appendChild(timeSpan);
+    return d;
+  }
+
+  function renderEphemeralGrid(){
+    var grid = document.getElementById('ephemeralGrid');
+    var emptyNote = document.getElementById('ephemeralEmptyNote');
+    var mine = posts.filter(function(p){ return p.mine && isWithin24h(p); })
+      .sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+    grid.innerHTML = '';
+    if(mine.length === 0){
+      emptyNote.style.display = 'block';
+      return;
+    }
+    emptyNote.style.display = 'none';
+    mine.forEach(function(p){ grid.appendChild(buildPostThumb(p)); });
+  }
+
+  function openMyPostsArchive(){
+    var grid = document.getElementById('archiveGrid');
+    var emptyNote = document.getElementById('archiveEmptyNote');
+    var mine = posts.filter(function(p){ return p.mine; })
+      .sort(function(a,b){ return (b.createdAt||0) - (a.createdAt||0); });
+    grid.innerHTML = '';
+    if(mine.length === 0){
+      emptyNote.style.display = 'block';
+    } else {
+      emptyNote.style.display = 'none';
+      mine.forEach(function(p){ grid.appendChild(buildPostThumb(p)); });
+    }
+    document.getElementById('myPostsArchiveOverlay').classList.add('open');
+  }
+  function closeMyPostsArchive(){
+    document.getElementById('myPostsArchiveOverlay').classList.remove('open');
+  }
+
+  function renderAvatarPicker(){
+    var wrap = document.getElementById(avatarPickerTarget);
+    if(!wrap) return;
+    wrap.innerHTML = '';
+    var isCustomPhoto = avatarPalette.indexOf(pendingAvatar) === -1;
+    if(isCustomPhoto){
+      // ファイルから選んだ自分の写真は、プリセットとは別に先頭に表示する
+      var custom = document.createElement('button');
+      custom.type = 'button';
+      custom.className = 'avatar-swatch sel';
+      custom.style.background = pendingAvatar;
+      wrap.appendChild(custom);
+    }
+    avatarPalette.forEach(function(g){
+      var s = document.createElement('button');
+      s.type = 'button';
+      s.className = 'avatar-swatch' + (!isCustomPhoto && g === pendingAvatar ? ' sel' : '');
+      s.style.background = g;
+      s.onclick = function(){ pendingAvatar = g; renderAvatarPicker(); };
+      wrap.appendChild(s);
+    });
+  }
+
+  function openAvatarFilePicker(target){
+    avatarPickerTarget = target;
+    document.getElementById('avatarFileInput').click();
+  }
+
+  function onAvatarFileSelected(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = ''; // 同じファイルを選び直しても変更イベントが発火するようにリセット
+    if(!file) return;
+    if(!file.type || file.type.indexOf('image/') !== 0){
+      alert('画像ファイルを選んでください。');
+      return;
+    }
+    if(file.size > 8 * 1024 * 1024){
+      alert('画像が大きすぎます(8MB以下の画像を選んでください)。');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(){
+      pendingAvatar = 'url(' + reader.result + ') center/cover no-repeat';
+      renderAvatarPicker();
+    };
+    reader.onerror = function(){ alert('画像を読み込めませんでした。'); };
+    reader.readAsDataURL(file);
+  }
+
+  function openEditProfile(){
+    avatarPickerTarget = 'avatarPick';
+    document.getElementById('editUsername').value = myProfile.username;
+    document.getElementById('editBio').value = myProfile.bio;
+    pendingAvatar = myProfile.avatar;
+    renderAvatarPicker();
+    document.getElementById('editProfileOverlay').classList.add('open');
+  }
+
+  function closeEditProfile(){
+    var changed = document.getElementById('editUsername').value.trim() !== myProfile.username
+      || document.getElementById('editBio').value.trim() !== myProfile.bio
+      || pendingAvatar !== myProfile.avatar;
+    if(changed && !confirm('編集した内容が消えますが、閉じますか?')) return;
+    document.getElementById('editProfileOverlay').classList.remove('open');
+  }
+
+  function saveProfile(){
+    var name = document.getElementById('editUsername').value.trim();
+    if(!name){ alert('ユーザー名を入力してください。'); return; }
+    myProfile.username = name;
+    myProfile.bio = document.getElementById('editBio').value.trim();
+    myProfile.avatar = pendingAvatar;
+    renderMyProfile();
+    document.getElementById('editProfileOverlay').classList.remove('open');
+  }
+
+  function renderLikes(){
+    var grid = document.getElementById('likesGrid');
+    var empty = document.getElementById('likesEmpty');
+    grid.innerHTML = '';
+    if(likedPosts.length === 0){ empty.classList.add('show'); return; }
+    empty.classList.remove('show');
+    likedPosts.slice().reverse().forEach(function(p){
+      var d = document.createElement('div');
+      d.className = 'l-thumb';
+      d.style.background = p.photo
+        ? 'url(' + p.photo + ') center/cover no-repeat'
+        : 'linear-gradient(160deg,' + p.a + ',' + p.b + ')';
+      // innerHTML+文字列結合はせず、textContentで安全に挿入する
+      // (p.nameは自分で編集できるユーザー名なので、HTMLとして解釈されるとXSSになりうる)
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'l-name';
+      nameSpan.textContent = p.name;
+      d.appendChild(nameSpan);
+      grid.appendChild(d);
+    });
+  }
+
+  // ---- DM(検索・一覧・チャット) ----
+  // つながっている(フォロー成立してDMが解禁された)相手の一覧。
+  // デモ用に最初から1人だけ既存の会話がある状態にしてある。
+  var connections = [
+    {
+      id:'p2', name:'みお', avatar:'linear-gradient(160deg,#c9a6ff,#7a3ff0)',
+      messages:[
+        {from:'them', text:'ロボットの制御プログラム、Pythonでも大丈夫ですか?'},
+        {from:'me', text:'はい、大丈夫です!週末に少し話せますか?'}
+      ]
+    }
+  ];
+
+  function addConnection(post){
+    var exists = connections.some(function(c){ return c.id === post.id; });
+    if(!exists){
+      connections.push({ id:post.id, name:post.name, avatar:post.avatar, messages:[] });
+    }
+  }
+
+  function renderDmList(){
+    var list = document.getElementById('dmList');
+    var empty = document.getElementById('dmEmpty');
+    var q = (document.getElementById('dmSearch').value || '').trim();
+    list.innerHTML = '';
+    var filtered = connections.filter(function(c){ return c.name.indexOf(q) !== -1; });
+    if(connections.length === 0){
+      empty.textContent = 'まだ誰ともDMできる関係になっていません。ホームでフォローしてつながりましょう。';
+      empty.classList.add('show');
+      return;
+    }
+    if(filtered.length === 0){
+      empty.textContent = '「' + q + '」に一致する相手が見つかりませんでした。';
+      empty.classList.add('show');
+      return;
+    }
+    empty.classList.remove('show');
+    filtered.forEach(function(c){
+      var row = document.createElement('div');
+      row.className = 'dm-row';
+      var last = c.messages.length ? c.messages[c.messages.length - 1].text : (c.lastPreview || 'まだメッセージはありません');
+      // innerHTML+文字列結合はせず、DOM APIとtextContentで安全に組み立てる
+      // (c.name/c.avatarは編集可能なユーザーデータなので、HTMLとして解釈されるとXSSになりうる)
+      var avatarDiv = document.createElement('div');
+      avatarDiv.className = 'avatar';
+      avatarDiv.style.background = c.avatar;
+      var metaDiv = document.createElement('div');
+      metaDiv.className = 'dm-meta';
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'dm-name';
+      nameDiv.textContent = c.name;
+      var lastDiv = document.createElement('div');
+      lastDiv.className = 'dm-last';
+      lastDiv.textContent = last;
+      metaDiv.appendChild(nameDiv);
+      metaDiv.appendChild(lastDiv);
+      row.appendChild(avatarDiv);
+      row.appendChild(metaDiv);
+      row.addEventListener('click', function(){ openDM(c); });
+      list.appendChild(row);
+    });
+  }
+
+  var activeChatId = null;
+  function openDM(person){
+    if(myAgeTier === 'elem') return; // 小学5・6年生はDM機能自体を持たない(念のための二重ガード)
+    addConnection(person);
+    var c = connections.filter(function(x){ return x.id === person.id; })[0];
+    activeChatId = c.id;
+    document.getElementById('chatAvatar').style.background = c.avatar;
+    document.getElementById('chatName').textContent = c.name;
+    renderMessages();
+    document.getElementById('dmChatOverlay').classList.add('open');
+    if(c.real){ loadRealMessages(c); startDmPoll(); }
+  }
+  function closeDmChat(){
+    document.getElementById('dmChatOverlay').classList.remove('open');
+    activeChatId = null;
+    stopDmPoll();
+    renderDmList();
+  }
+
+  // ---- 本物のDM(Supabase: dm_threads / dm_messages) ----
+  // 年齢層の壁(小学生不可・中高生同士・成人同士のみ)はサーバー側のRLS/RPCが強制する。
+  // フロントは結果を表示するだけで、ここを迂回しても壁は破れない。
+  var dmPollTimer = null;
+  function dmErrorText(err){
+    var m = (err && err.message) ? String(err.message) : '';
+    if(m.indexOf('dm_not_allowed') !== -1) return 'この相手とはDMできません。';
+    if(m.indexOf('account_not_active') !== -1) return 'このアカウントは現在DMを利用できません。';
+    if(m.indexOf('not_authenticated') !== -1) return 'ログインが必要です。';
+    return 'うまくいきませんでした。少し待ってからもう一度お試しください。';
+  }
+  function startDmPoll(){
+    stopDmPoll();
+    dmPollTimer = setInterval(function(){
+      var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+      if(c && c.real) loadRealMessages(c);
+    }, 5000);
+  }
+  function stopDmPoll(){
+    if(dmPollTimer){ clearInterval(dmPollTimer); dmPollTimer = null; }
+  }
+  async function loadRealThreads(){
+    if(!supabaseClient || !myUserId || myAgeTier === 'elem') return;
+    try {
+      var res = await supabaseClient.rpc('list_my_dm_threads');
+      if(res.error) throw res.error;
+      (res.data || []).forEach(function(t){
+        var c = connections.filter(function(x){ return x.id === t.other_id; })[0];
+        if(!c){
+          c = { id: t.other_id, name: t.other_name, avatar: t.other_avatar || 'linear-gradient(160deg,#ffd08a,#ff7a1a)', messages: [] };
+          connections.push(c);
+        }
+        c.real = true;
+        c.threadId = t.thread_id;
+        c.lastPreview = t.last_body || '';
+      });
+      if(document.getElementById('view-dm').classList.contains('active')) renderDmList();
+    } catch(e) { /* 一覧の取得に失敗しても既存表示は維持する */ }
+  }
+  async function loadRealMessages(c){
+    if(!supabaseClient || !c.threadId) return;
+    try {
+      var res = await supabaseClient.from('dm_messages')
+        .select('id,sender_id,body,created_at,read_at')
+        .eq('thread_id', c.threadId).order('created_at', { ascending: true }).limit(200);
+      if(res.error) throw res.error;
+      var rows = res.data || [];
+      var before = c.messages.length;
+      c.messages = rows.map(function(m){ return { from: m.sender_id === myUserId ? 'me' : 'them', text: m.body }; });
+      if(activeChatId === c.id && (c.messages.length !== before)) renderMessages();
+      var hasUnread = rows.some(function(m){ return m.sender_id !== myUserId && !m.read_at; });
+      if(hasUnread && activeChatId === c.id){
+        await supabaseClient.from('dm_messages').update({ read_at: new Date().toISOString() })
+          .eq('thread_id', c.threadId).neq('sender_id', myUserId).is('read_at', null);
+      }
+    } catch(e) { /* 次のポーリングで再試行 */ }
+  }
+  async function openRealDM(userId){
+    if(myAgeTier === 'elem') return;
+    if(!supabaseClient || !myUserId){ alert('DMを使うにはログインが必要です。'); return; }
+    var u = realUserCache[userId];
+    if(!u) return;
+    try {
+      var res = await supabaseClient.rpc('open_dm_thread', { other: userId });
+      if(res.error) throw res.error;
+      var c = connections.filter(function(x){ return x.id === userId; })[0];
+      if(!c){
+        c = { id: userId, name: u.name, avatar: u.avatar, messages: [] };
+        connections.push(c);
+      }
+      c.real = true;
+      c.threadId = res.data;
+      switchView('dm', document.getElementById('dmTab'));
+      openDM(c);
+    } catch(err) {
+      alert(dmErrorText(err));
+    }
+  }
+  function renderMessages(){
+    var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+    var box = document.getElementById('dmMessages');
+    box.innerHTML = '';
+    if(!c || c.messages.length === 0){
+      var hint = document.createElement('div');
+      hint.className = 'dm-note';
+      hint.style.textAlign = 'center';
+      hint.style.marginTop = '20px';
+      hint.textContent = 'まだメッセージがありません。挨拶してみましょう。';
+      box.appendChild(hint);
+      return;
+    }
+    c.messages.forEach(function(m){
+      var b = document.createElement('div');
+      b.className = 'dm-bubble ' + (m.from === 'me' ? 'me' : 'them');
+      b.textContent = m.text;
+      box.appendChild(b);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  function sendDm(){
+    var input = document.getElementById('dmInput');
+    var text = input.value.trim();
+    if(!text || !activeChatId) return;
+    var c = connections.filter(function(x){ return x.id === activeChatId; })[0];
+    if(c.real){
+      if(text.length > 2000){ alert('メッセージは2000文字までです。'); return; }
+      input.value = '';
+      c.messages.push({ from:'me', text:text });
+      renderMessages();
+      // AIによる送信前チェック(moderate関数)は、Supabase側にANTHROPIC_API_KEYが設定され次第ここに挟む
+      supabaseClient.from('dm_messages').insert({ thread_id: c.threadId, sender_id: myUserId, body: text })
+        .then(function(res){
+          if(res.error){
+            c.messages.pop();
+            renderMessages();
+            input.value = text;
+            alert(dmErrorText(res.error));
+          }
+        });
+      return;
+    }
+    c.messages.push({ from:'me', text:text });
+    input.value = '';
+    renderMessages();
+    // AIによる送信前チェックは実装時にここに挟む想定(危険な誘導・個人情報交換などを検知)
+  }
+
+  // ---- 登録(オンボーディング) ----
+  var obStep = 1;
+  var obAge = null;
+  var obGenres = [];
+
+  var phoneCodeSent = false;
+  // mandatory=true: 初回訪問の必須登録として開く(✕で閉じられない)。
+  // mandatory=false/省略: 開発者パネルからのプレビュー表示(自由に閉じられる)。
+  var onboardMandatory = false;
+  function openOnboard(mandatory){
+    onboardMandatory = !!mandatory;
+    obStep = 1; obAge = null; obGenres = []; phoneCodeSent = false;
+    document.querySelectorAll('.age-option').forEach(function(b){ b.classList.remove('sel'); });
+    document.getElementById('agreeCheck').checked = false;
+    document.getElementById('phoneInput').value = '';
+    document.getElementById('codeInput').value = '';
+    document.getElementById('obEmail').value = '';
+    document.getElementById('obPassword').value = '';
+    document.getElementById('obSignupError').style.display = 'none';
+    document.getElementById('parentEmailInput').value = '';
+    document.getElementById('codeBox').style.display = 'none';
+    document.querySelectorAll('#obStep4 .g-chip').forEach(function(c){ c.classList.remove('sel'); });
+    showObStep(1);
+    document.getElementById('onboardOverlay').classList.add('open');
+  }
+  function closeOnboard(){
+    if(onboardMandatory){
+      alert('ご利用には年齢確認などの登録が必要です。');
+      return;
+    }
+    var hasInput = obAge || document.getElementById('phoneInput').value.trim() || document.getElementById('codeInput').value.trim();
+    if(hasInput && !confirm('入力した内容が消えますが、閉じますか?')) return;
+    document.getElementById('onboardOverlay').classList.remove('open');
+  }
+  function mockSendCode(){
+    var raw = toHalfWidthDigits(document.getElementById('phoneInput').value.trim());
+    var digits = raw.replace(/[^0-9]/g, '');
+    if(digits.length < 10 || digits.length > 11){
+      alert('正しい電話番号を入力してください(ハイフンありなしどちらでも可、10〜11桁)');
+      return;
+    }
+    phoneCodeSent = true;
+    document.getElementById('codeBox').style.display = 'block';
+  }
+
+  function showObStep(n){
+    obStep = n;
+    document.querySelectorAll('.onboard-step').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById('obStep' + n).classList.add('active');
+    ['obs1','obs2','obs3','obs4','obs5'].forEach(function(id, i){
+      document.getElementById(id).classList.toggle('done', i < n);
+    });
+    var btn = document.getElementById('obNextBtn');
+    if(n === 3){
+      var isAdult = obAge === 'adult';
+      document.getElementById('obStep2Title').textContent = isAdult ? '利用規約への同意' : '保護者の同意が必要です';
+      document.getElementById('obStep2Sub').textContent = isAdult
+        ? '利用規約に同意のうえ、ご利用を開始してください。'
+        : '未成年の方がご利用になる場合、保護者の同意が必要です。保護者の連絡先を入力してください。';
+      document.getElementById('consentBox').style.display = isAdult ? 'none' : 'block';
+    }
+    if(n === 5){
+      avatarPickerTarget = 'obAvatarPick';
+      pendingAvatar = myProfile.avatar;
+      renderAvatarPicker();
+      document.getElementById('obUsername').value = myProfile.username;
+      document.getElementById('obBio').value = myProfile.bio;
+    }
+    btn.textContent = n === 5 ? 'はじめる' : '次へ';
+    updateNextBtn();
+  }
+
+  function selectAge(btn){
+    document.querySelectorAll('.age-option').forEach(function(b){ b.classList.remove('sel'); });
+    btn.classList.add('sel');
+    obAge = btn.dataset.age;
+    updateNextBtn();
+  }
+
+  function toggleObGenre(chip){
+    chip.classList.toggle('sel');
+    var g = chip.dataset.g;
+    if(chip.classList.contains('sel')) obGenres.push(g);
+    else obGenres = obGenres.filter(function(x){ return x !== g; });
+  }
+
+  function updateNextBtn(){
+    var btn = document.getElementById('obNextBtn');
+    if(obStep === 1){ btn.disabled = !obAge; }
+    else if(obStep === 2){
+      var code = document.getElementById('codeInput').value.trim();
+      var email = document.getElementById('obEmail').value.trim();
+      var password = document.getElementById('obPassword').value;
+      var emailOk = /\S+@\S+\.\S+/.test(email);
+      btn.disabled = !(phoneCodeSent && /^[0-9]{6}$/.test(code) && emailOk && password.length >= 8);
+    }
+    else if(obStep === 3){
+      var isAdult = obAge === 'adult';
+      var emailOk = isAdult || /\S+@\S+\.\S+/.test(document.getElementById('parentEmailInput').value.trim());
+      btn.disabled = !(document.getElementById('agreeCheck').checked && emailOk);
+    }
+    else if(obStep === 5){
+      btn.disabled = !document.getElementById('obUsername').value.trim();
+    }
+    else { btn.disabled = false; }
+  }
+
+  function onboardNext(){
+    if(obStep < 5){ showObStep(obStep + 1); return; }
+    completeRegistration();
+  }
+
+  // 登録完了 → 本物のSupabaseアカウントを作成し、usersテーブルに行を作ってからメインのフィードへ。
+  // (登録完了は「閉じる」ではないので、closeOnboard()の確認ダイアログは通さない)
+  async function completeRegistration(){
+    var btn = document.getElementById('obNextBtn');
+    var errBox = document.getElementById('obSignupError');
+    errBox.style.display = 'none';
+
+    if(!supabaseClient){
+      errBox.textContent = 'バックエンドへの接続に失敗しました。通信環境をご確認のうえ、もう一度お試しください。';
+      errBox.style.display = 'block';
+      showObStep(2);
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '登録しています…';
+
+    var username = document.getElementById('obUsername').value.trim();
+    var email = document.getElementById('obEmail').value.trim();
+    var password = document.getElementById('obPassword').value;
+    var bio = document.getElementById('obBio').value.trim();
+    var avatar = pendingAvatar;
+
+    // 生年月日は今の登録画面ではまだ個別入力する欄が無いため、選んだ年齢帯(obAge)から
+    // 代表的な生年月日を仮に割り当てている(実際の生年月日入力欄の追加は次の段階のTODO)。
+    var repYears = obAge === 'elem' ? 11 : (obAge === 'teen' ? 15 : 25);
+    var repDate = new Date();
+    repDate.setFullYear(repDate.getFullYear() - repYears);
+    var birthdate = repDate.toISOString().slice(0, 10);
+
+    try {
+      var signUpRes = await supabaseClient.auth.signUp({ email: email, password: password });
+      if(signUpRes.error) throw signUpRes.error;
+      var userId = signUpRes.data && signUpRes.data.user ? signUpRes.data.user.id : null;
+      if(!userId) throw new Error('ユーザーIDを取得できませんでした。');
+
+      var insertRes = await supabaseClient.from('users').insert({
+        id: userId, display_name: username, birthdate: birthdate, bio: bio, avatar: avatar,
+        guardian_contact: document.getElementById('parentEmailInput').value.trim() || null
+      });
+      if(insertRes.error) throw insertRes.error;
+
+      myProfile.username = username;
+      myProfile.bio = bio;
+      myProfile.avatar = avatar;
+      myAgeTier = obAge;
+      myUserId = userId; // renderMyProfile()がハンドル(@user_...)を組み立てるのに使うため、呼び出し前に必ず設定する
+      renderMyProfile();
+      applyAgeTierUI();
+      try {
+        localStorage.setItem('spark_onboarded', '1');
+        localStorage.setItem('spark_age_tier', obAge || '');
+        localStorage.setItem('spark_user_id', userId);
+      } catch(e){}
+      onboardMandatory = false;
+      document.getElementById('onboardOverlay').classList.remove('open');
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      document.getElementById('view-feed').classList.add('active');
+      document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+    } catch(err) {
+      errBox.textContent = '登録に失敗しました: ' + (err && err.message ? err.message : '不明なエラー');
+      errBox.style.display = 'block';
+      showObStep(2); // メール・パスワード入力に戻す(エラー表示欄がここにあるため)
+    }
+  }
+
+  // ---- お問い合わせ ----
+  var contactCat = null;
+  function openContact(){
+    contactCat = null;
+    document.querySelectorAll('.contact-cat').forEach(function(c){ c.classList.remove('sel'); });
+    document.getElementById('contactForm').classList.remove('show');
+    document.getElementById('contactOverlay').classList.add('open');
+  }
+  function closeContact(){
+    var hasInput = document.getElementById('contactMsg').value.trim() || document.getElementById('contactEmail').value.trim() || document.getElementById('contactName').value.trim();
+    if(hasInput && !confirm('入力した内容が消えますが、閉じますか?')) return;
+    document.getElementById('contactOverlay').classList.remove('open');
+  }
+
+  function openTerms(){
+    document.getElementById('termsOverlay').classList.add('open');
+  }
+  function closeTerms(){
+    document.getElementById('termsOverlay').classList.remove('open');
+  }
+
+  function reportFromProfile(){
+    closeAllPops();
+    openContact();
+    var safetyBtn = document.querySelector('.contact-cat[onclick*="safety"]');
+    if(safetyBtn) selectContactCat(safetyBtn, 'safety');
+  }
+
+  // ログアウト/アカウント切り替え。以前はこの機能が一切無く、一度登録すると
+  // 同じ端末・同じブラウザでは二度と別アカウントに切り替えられなかった
+  // (ブラウザのデータを手動で消すしか方法が無かった)。
+  async function logoutOrSwitchAccount(){
+    closeAllPops();
+    if(!confirm('ログアウトしますか?このブラウザに保存されているログイン情報が消え、もう一度登録画面からやり直せるようになります。')) return;
+    try { if(supabaseClient) await supabaseClient.auth.signOut(); } catch(e){}
+    try {
+      localStorage.removeItem('spark_onboarded');
+      localStorage.removeItem('spark_age_tier');
+      localStorage.removeItem('spark_user_id');
+    } catch(e){}
+    location.reload();
+  }
+
+  // ---- コメント ----
+  var commentsByPost = {};
+  function openComments(){
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
+    if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
+    renderComments();
+    document.getElementById('commentOverlay').classList.add('open');
+  }
+  function closeComments(){
+    document.getElementById('commentOverlay').classList.remove('open');
+  }
+  function renderComments(){
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
+    var list = commentsByPost[p.id] || [];
+    var box = document.getElementById('commentList');
+    box.innerHTML = '';
+    if(list.length === 0){
+      var hint = document.createElement('div');
+      hint.className = 'dm-note';
+      hint.style.textAlign = 'center';
+      hint.style.marginTop = '20px';
+      hint.textContent = 'まだコメントがありません。最初のコメントをどうぞ。';
+      box.appendChild(hint);
+      return;
+    }
+    list.forEach(function(c){
+      var b = document.createElement('div');
+      b.className = 'dm-bubble them';
+      b.textContent = c.text;
+      box.appendChild(b);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  function sendComment(){
+    var input = document.getElementById('commentInput');
+    var text = input.value.trim();
+    if(!text) return;
+    var p = findPost(feedQueue[0]);
+    if(!p) return;
+    if(!commentsByPost[p.id]) commentsByPost[p.id] = [];
+    commentsByPost[p.id].push({ text:text });
+    input.value = '';
+    renderComments();
+    // AIによる送信前チェックは実装時にここに挟む想定
+  }
+  function selectContactCat(btn, cat){
+    contactCat = cat;
+    document.querySelectorAll('.contact-cat').forEach(function(c){ c.classList.remove('sel'); c.style.borderColor = '#ffffff1f'; });
+    btn.style.borderColor = 'var(--orange)';
+    document.getElementById('contactForm').classList.add('show');
+  }
+  function sendContact(){
+    var email = document.getElementById('contactEmail').value.trim();
+    var msg = document.getElementById('contactMsg').value.trim();
+    if(!contactCat || !msg) return;
+    if(!/\S+@\S+\.\S+/.test(email)){
+      alert('返信用メールアドレスを正しく入力してください。返信先がないと、お問い合わせにお答えできません。');
+      return;
+    }
+    alert('(プロトタイプ) 送信しました。担当チームが確認します。');
+    document.getElementById('contactName').value = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('contactMsg').value = '';
+    closeContact();
+  }
+
+  function toggleDevPanel(){
+    document.getElementById('devPanel').classList.toggle('open');
+  }
+
+  function toggleDemo(){
+    eligible = !eligible;
+    var el = document.getElementById('demoToggle');
+    var label = document.getElementById('demoLabel');
+    el.classList.toggle('on', !eligible);
+    label.textContent = eligible ? 'プレビュー相手: 中学生以上(DM解禁)' : 'プレビュー相手: 小学5・6年生(DM不可)';
+    renderCard();
+  }
+
+  function bump(el){
+    el.style.transform = 'scale(.88)';
+    setTimeout(function(){ el.style.transform = ''; }, 120);
+  }
+
+  // ドラッグ操作: 右=興味あり/左=興味なし/上=保留。指を離した時の方向で判定する
+  (function(){
+    var card = document.getElementById('card');
+    var stampLike = document.getElementById('stampLike');
+    var stampPass = document.getElementById('stampPass');
+    var stampHold = document.getElementById('stampHold');
+    var dragging = false, moved = false, startX = 0, startY = 0, dx = 0, dy = 0;
+    var THRESH = 90; // これ以上動かしたら判定成立とみなす(px、390設計基準)
+
+    card.addEventListener('pointerdown', function(e){
+      if(e.target.closest('.pill-btn') || e.target.closest('.icon-circle') || e.target.closest('.postmeta')) return;
+      dragging = true; moved = false;
+      startX = e.clientX; startY = e.clientY;
+      card.style.transition = 'none';
+      card.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    card.addEventListener('pointermove', function(e){
+      if(!dragging) return;
+      e.preventDefault();
+      dx = (e.clientX - startX) / currentZoom; dy = (e.clientY - startY) / currentZoom;
+      if(Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + (dx / 18) + 'deg)';
+      var upness = -dy - Math.abs(dx) * 0.6; // 上方向がはっきり優勢な時だけ保留と判定
+      stampHold.style.opacity = Math.max(0, Math.min(1, upness / THRESH));
+      stampLike.style.opacity = dx > 0 ? Math.max(0, Math.min(1, (dx - Math.abs(dy)*0.6) / THRESH)) : 0;
+      stampPass.style.opacity = dx < 0 ? Math.max(0, Math.min(1, (-dx - Math.abs(dy)*0.6) / THRESH)) : 0;
+    });
+
+    function endDrag(e){
+      if(!dragging) return;
+      dragging = false;
+      card.style.transition = '';
+      var absX = Math.abs(dx), absY = Math.abs(dy);
+
+      if(-dy > THRESH && -dy > absX){
+        resolveSwipe('hold', 0, -1);
+      } else if(dx > THRESH && absX > absY){
+        resolveSwipe('like', 1, dy > 0 ? 0.3 : -0.3);
+      } else if(dx < -THRESH && absX > absY){
+        resolveSwipe('pass', -1, dy > 0 ? 0.3 : -0.3);
+      } else {
+        // 判定に届かなかった場合は真ん中へ戻す
+        card.style.transform = 'translate(0,0) rotate(0)';
+        ['stampLike','stampPass','stampHold'].forEach(function(id){ document.getElementById(id).style.opacity = 0; });
+      }
+      dx = 0; dy = 0;
+    }
+    card.addEventListener('pointerup', endDrag);
+    card.addEventListener('pointercancel', endDrag);
+
+    function resolveSwipe(kind, xDir, yDir){
+      if(feedQueue.length === 0) return;
+      var flyX = xDir * 480, flyY = yDir * 480 - (kind === 'hold' ? 260 : 0);
+      card.style.transform = 'translate(' + flyX + 'px,' + flyY + 'px) rotate(' + (xDir * 20) + 'deg)';
+      card.style.opacity = '0';
+      var currentId = feedQueue[0];
+      var p = findPost(currentId);
+      if(kind === 'like'){
+        // 興味ありにした投稿は二度とスクロール欄に出さない。同じジャンルを優先表示するため、
+        // ジャンルごとの興味あり回数を記録し、以後の並びに反映する。
+        likedPosts.push(p);
+        likedPostIds[currentId] = true;
+        likedGenreCounts[p.genre] = (likedGenreCounts[p.genre] || 0) + 1;
+        feedQueue.shift();
+        feedQueue = buildFeedQueue(); // 好みの変化を次の並びにすぐ反映する
+      } else if(kind === 'pass'){
+        // 興味なしにした投稿も二度と出さない
+        passedIds[currentId] = true;
+        feedQueue.shift();
+      } else {
+        // 保留は先送りするだけ(また後で出てくる)
+        feedQueue.push(feedQueue.shift());
+      }
+      setTimeout(function(){
+        renderCard();
+        card.style.transition = 'none';
+        card.style.transform = 'translate(0,0) rotate(0)'; card.style.opacity = '1';
+        requestAnimationFrame(function(){ card.style.transition = ''; });
+      }, 260);
+    }
+  })();
+
+  // ---- カメラ(撮影→ジャンル選択→投稿) ----
+  // 実機のカメラをgetUserMediaで起動し、シャッターを押した瞬間の映像をcanvasに焼き付けて
+  // 1枚の静止画(dataURL)にする。「加工なし・その場の1枚だけ」という仕様上、
+  // フィルター等は一切かけない。ダミーの色グラデーションは、最初から入っているサンプル
+  // 投稿(posts配列)の見た目としてのみ引き続き使う。
+  var selectedGenre = null;
+  var camStream = null;
+  var capturedPhoto = null; // 撮影した写真のdataURL
+
+  function openCamera(){
+    document.getElementById('cameraOverlay').classList.add('open');
+    document.getElementById('camStage').style.display = 'flex';
+    document.getElementById('previewStage').style.display = 'none';
+    startCameraStream();
+  }
+  function closeCamera(){
+    document.getElementById('cameraOverlay').classList.remove('open');
+    stopCameraStream();
+  }
+
+  function startCameraStream(){
+    var video = document.getElementById('camVideo');
+    var errBox = document.getElementById('camError');
+    errBox.classList.remove('show');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      errBox.textContent = 'このブラウザではカメラを使用できません。';
+      errBox.classList.add('show');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(function(stream){
+        camStream = stream;
+        video.srcObject = stream;
+      })
+      .catch(function(err){
+        errBox.textContent = 'カメラを起動できませんでした。ブラウザの設定でこのサイトのカメラへのアクセスを許可してください。(' + (err && err.name ? err.name : 'エラー') + ')';
+        errBox.classList.add('show');
+      });
+  }
+
+  function stopCameraStream(){
+    if(camStream){
+      camStream.getTracks().forEach(function(t){ t.stop(); });
+      camStream = null;
+    }
+  }
+
+  function takeShot(){
+    var video = document.getElementById('camVideo');
+    if(!video.videoWidth){
+      return; // まだカメラ映像が来ていない(許可待ち・エラー中など)
+    }
+    var flash = document.getElementById('camFlash');
+    flash.style.transition = 'none'; flash.style.opacity = '1';
+    requestAnimationFrame(function(){
+      flash.style.transition = 'opacity .35s ease';
+      flash.style.opacity = '0';
+    });
+
+    var canvas = document.getElementById('camCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    capturedPhoto = canvas.toDataURL('image/jpeg', 0.85);
+    stopCameraStream(); // プレビュー中はカメラを止めておく(電池・プライバシー配慮)
+
+    setTimeout(function(){
+      document.getElementById('previewPhoto').classList.remove('no-photo-active');
+      var preview = document.getElementById('previewPhoto');
+      preview.style.background = 'url(' + capturedPhoto + ') center/cover no-repeat';
+      document.getElementById('camStage').style.display = 'none';
+      document.getElementById('previewStage').style.display = 'flex';
+      selectedGenre = null;
+      document.getElementById('postCaption').value = '';
+      document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+      updatePostBtnState();
+    }, 140);
+  }
+
+  function retake(){
+    capturedPhoto = null;
+    document.getElementById('camStage').style.display = 'flex';
+    document.getElementById('previewStage').style.display = 'none';
+    startCameraStream(); // 撮り直すのでカメラを再度起動
+  }
+
+  // 写真を撮らず、文章だけで投稿する(カメラを起動しないまま撮影後と同じプレビュー画面へ)
+  function skipToTextPost(){
+    stopCameraStream();
+    capturedPhoto = null;
+    var preview = document.getElementById('previewPhoto');
+    preview.style.background = '';
+    preview.classList.add('no-photo-active');
+    document.getElementById('camStage').style.display = 'none';
+    document.getElementById('previewStage').style.display = 'flex';
+    selectedGenre = null;
+    document.getElementById('postCaption').value = '';
+    document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+    updatePostBtnState();
+  }
+
+  document.querySelectorAll('.g-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      document.querySelectorAll('.g-chip').forEach(function(c){ c.classList.remove('sel'); });
+      chip.classList.add('sel');
+      selectedGenre = chip.dataset.g;
+      updatePostBtnState();
+    });
+  });
+
+  // 投稿ボタンが押せる条件: ジャンルが選ばれていて、かつ「写真」か「文章」の少なくとも一方がある
+  function updatePostBtnState(){
+    var caption = document.getElementById('postCaption').value.trim();
+    var ready = !!selectedGenre && (!!capturedPhoto || !!caption);
+    document.getElementById('postBtn').classList.toggle('ready', ready);
+  }
+
+  function postShot(){
+    var caption = document.getElementById('postCaption').value.trim();
+    if(!selectedGenre) return; // ジャンル未選択では投稿できない
+    if(!capturedPhoto && !caption) return; // 写真も文章も無い投稿は不可
+    // 新しい投稿を先頭に追加する(24時間表示という想定のダミー反映)。
+    // mine:true の投稿はスワイプ用のフィードには出さない(以前は自分の投稿が
+    // 自分のカードとして出てしまい、自分にフォロー/DMできてしまうバグがあった)。
+    posts.unshift({
+      id:'mine-' + Date.now(), name:myProfile.username, genre:selectedGenre,
+      avatar:myProfile.avatar, photo:capturedPhoto, caption:caption, mine:true, createdAt:Date.now()
+    });
+    feedQueue = buildFeedQueue();
+    renderEphemeralGrid();
+    renderCard();
+
+    var streakEl = document.getElementById('streakDays');
+    streakEl.textContent = (parseInt(streakEl.textContent, 10) || 0) + 1;
+
+    var toast = document.getElementById('postToast');
+    toast.classList.add('show');
+    setTimeout(function(){ toast.classList.remove('show'); }, 1800);
+
+    setTimeout(function(){
+      closeCamera();
+      // ホーム画面に戻す
+      document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+      document.getElementById('view-feed').classList.add('active');
+      document.querySelectorAll('.tabbar .tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelector('.tabbar .tab[title^="ホーム"]').classList.add('active');
+    }, 900);
+  }
+
+  // ---- 初回訪問ゲート ----
+  // 登録画面は元々「開発者パネルからのプレビュー用」としてのみ実装されており、
+  // 実際の訪問者が入る導線には一切繋がっていなかった(年齢確認・保護者同意という
+  // 安全設計の入り口そのものが機能していない状態)。一般公開する前提になったため、
+  // localStorageで「登録済みか」を覚え、未登録の初回訪問(開発者モードを除く)では
+  // 必ず登録を通すようにする。バックエンド未接続の現段階ではあくまで
+  // フロントエンド側の仮のゲートであり、実際の年齢確認の強制力はDellさんの
+  // バックエンド接続(RLS)が入って初めて完成する。
+  (function(){
+    var alreadyOnboarded = false;
+    try { alreadyOnboarded = localStorage.getItem('spark_onboarded') === '1'; } catch(e){}
+    // 「登録済みフラグは立っているのに本物のアカウントID(myUserId)が無い」状態は、
+    // バックエンド接続前の古いバージョンで登録を済ませてしまった実機で実際に発生した。
+    // このままだと「@未登録(開発者プレビュー)」のまま二度と登録画面に戻れなくなるため、
+    // このケースは未登録扱いに戻し、登録をやり直せるようにする。
+    if(alreadyOnboarded && !myUserId){
+      alreadyOnboarded = false;
+      try {
+        localStorage.removeItem('spark_onboarded');
+        localStorage.removeItem('spark_age_tier');
+        localStorage.removeItem('spark_user_id');
+      } catch(e){}
+    }
+    if(!alreadyOnboarded && !document.body.classList.contains('dev-mode')){
+      openOnboard(true);
+    }
+  })();
+
+  // 登録済みユーザーがページを再読み込みした際、ログイン中のsupabaseセッションは
+  // 残っているのに、プロフィール表示(ユーザー名・自己紹介・アイコン)が空欄に
+  // 戻ってしまうバグがあったため、本物のusersテーブルから取得し直す。
+  (async function restoreMyProfileFromBackend(){
+    if(!myUserId || !supabaseClient) return;
+    try {
+      await supabaseClient.auth.getSession(); // セッション復元を待ってから照会する
+      var res = await supabaseClient.from('users').select('display_name,bio,avatar').eq('id', myUserId).maybeSingle();
+      if(res.error || !res.data) return;
+      myProfile.username = res.data.display_name || myProfile.username;
+      myProfile.bio = res.data.bio || '';
+      myProfile.avatar = res.data.avatar || myProfile.avatar;
+      renderMyProfile();
+    } catch(e){}
+  })();
+</script>
+</body>
+</html>
